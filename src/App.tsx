@@ -731,8 +731,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0c10] text-white flex flex-col lg:grid lg:grid-cols-[280px_1fr] antialiased">
-      {/* Navigation Header / Sidebar (Variation 2) */}
+    <div className="min-h-screen bg-[#fdfdfc] text-[#1a1a18] flex flex-col antialiased">
+      {/* Navigation Header (Variation 3) */}
       <Header
         config={config}
         activeTab={activeTab}
@@ -748,26 +748,25 @@ export default function App() {
 
       {/* Floating Notification Toast */}
       {notification && (
-        <div className="fixed bottom-5 right-5 z-50 bg-[#1f2833] text-white px-4 py-3 rounded-xs shadow-2xl text-xs font-semibold flex items-center gap-2 border border-white/20 animate-in fade-in slide-in-from-bottom-3 no-print">
-          <span className="w-2 h-2 rounded-full bg-[#45a29e] animate-pulse"></span>
+        <div className="fixed bottom-5 right-5 z-50 bg-[#1a1a18] text-white px-4 py-3 shadow-[4px_4px_0px_#2e4cff] text-xs font-medium font-roboto-mono flex items-center gap-2 border border-[#1a1a18] animate-in fade-in slide-in-from-bottom-3 no-print">
+          <span className="w-2 h-2 rounded-full bg-[#2e4cff]"></span>
           <span>{notification}</span>
         </div>
       )}
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          {activeTab === 'dashboard' && (
-            <DashboardView
-              config={config}
-              students={students}
-              rooms={rooms}
-              schedules={schedules}
-              setActiveTab={setActiveTab}
-              onDistributeCross={handleDistributeCross}
-              onDistributeSequential={handleDistributeSequential}
-            />
-          )}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {activeTab === 'dashboard' && (
+          <DashboardView
+            config={config}
+            students={students}
+            rooms={rooms}
+            schedules={schedules}
+            setActiveTab={setActiveTab}
+            onDistributeCross={handleDistributeCross}
+            onDistributeSequential={handleDistributeSequential}
+          />
+        )}
 
         {activeTab === 'config' && (
           <ConfigView
@@ -882,35 +881,34 @@ export default function App() {
             schedules={schedules}
           />
         )}
-        </main>
+      </main>
 
-        {/* Cloud Firestore Multi-Device Sync Modal */}
-        <CloudSyncModal
-          isOpen={showCloudSyncModal}
-          onClose={() => setShowCloudSyncModal(false)}
-          config={config}
-          students={students}
-          rooms={rooms}
-          proctors={proctors}
-          schedules={schedules}
-          attendanceRecords={attendanceRecords}
-          isConnected={isCloudConnected}
-          isSyncing={isSyncing}
-          onForceSyncAllToCloud={handleForceSyncAllToCloud}
-        />
+      {/* Cloud Firestore Multi-Device Sync Modal */}
+      <CloudSyncModal
+        isOpen={showCloudSyncModal}
+        onClose={() => setShowCloudSyncModal(false)}
+        config={config}
+        students={students}
+        rooms={rooms}
+        proctors={proctors}
+        schedules={schedules}
+        attendanceRecords={attendanceRecords}
+        isConnected={isCloudConnected}
+        isSyncing={isSyncing}
+        onForceSyncAllToCloud={handleForceSyncAllToCloud}
+      />
 
-        {/* Variation 2 App Footer */}
-        <footer className="border-t border-white/10 bg-[#0b0c10] py-4 text-center text-xs text-white/50 no-print mt-auto">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-            <span className="label-mono">
-              {config.schoolName || 'SMK YAK 1'} — SISTEM INFORMASI MANAJEMEN UJIAN SEKOLAH
-            </span>
-            <span className="label-mono opacity-50">
-              © 2026 EXAM-SYNC CORE
-            </span>
-          </div>
-        </footer>
-      </div>
+      {/* Variation 3 App Footer */}
+      <footer className="border-t-[1.5px] border-[#1a1a18] bg-[#fdfdfc] py-4 text-center text-xs font-roboto-mono text-[#1a1a18]/70 no-print mt-auto">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+          <span>
+            Sistem Informasi Manajemen Ujian {config.schoolName || 'SMK YAK 1'}
+          </span>
+          <span>
+            Mendukung Kurikulum Nasional • v2.0.26
+          </span>
+        </div>
+      </footer>
     </div>
   );
 }

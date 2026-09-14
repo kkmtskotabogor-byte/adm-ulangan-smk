@@ -1,17 +1,12 @@
 import React from 'react';
 import { ActiveTab, ExamConfig, ExamRoom, ExamScheduleItem, Student } from '../types';
 import { 
-  Users, 
-  DoorOpen, 
-  IdCard, 
-  Shuffle, 
-  Layers, 
-  ExternalLink, 
   Printer, 
-  CheckCircle2, 
-  AlertTriangle,
+  Sparkles,
   ArrowRight,
-  Sparkles
+  ExternalLink,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { DEFAULT_MAJOR_1, DEFAULT_MAJOR_2 } from '../utils/distribution';
 
@@ -37,335 +32,253 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalStudents = students.length;
   const assignedStudents = students.filter((s) => s.roomId && s.seatNumber);
   const unassignedStudents = totalStudents - assignedStudents.length;
-  const totalCapacity = rooms.reduce((acc, r) => acc + (r.capacity || 0), 0);
   const plottingPercentage = totalStudents > 0 ? Math.round((assignedStudents.length / totalStudents) * 100) : 0;
-
-  // Group by class
-  const classBreakdown = students.reduce((acc, s) => {
-    acc[s.className] = (acc[s.className] || 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
 
   const major1Title = config.major1Name || DEFAULT_MAJOR_1;
   const major2Title = config.major2Name || DEFAULT_MAJOR_2;
 
-  const handleOpenNewTab = () => {
-    if (typeof window !== 'undefined') {
-      window.open(window.location.href, '_blank');
-    }
+  const handleOpenCards = () => {
+    setActiveTab('cards');
   };
 
-  const handlePrint = () => {
+  const handlePrintCards = () => {
     setActiveTab('cards');
     setTimeout(() => {
       window.print();
-    }, 300);
+    }, 400);
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-300">
-      {/* HEADER SECTION - Variation 2 Exact Specification */}
-      <header className="border-b-2 border-white pb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
-        <div className="space-y-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <span className="label-mono text-[#45a29e] font-bold flex items-center gap-1.5">
-              <span className="inline-block w-2 h-2 rounded-full bg-[#45a29e] animate-pulse"></span>
-              ● ONLINE
-            </span>
-            <span className="label-mono">
-              {config.examType} {config.semester ? `SEM. ${config.semester.toUpperCase()}` : ''} {config.academicYear}
-            </span>
+    <div className="space-y-0 border border-[#1a1a18] bg-white shadow-sm animate-in fade-in duration-300">
+      {/* HERO SECTION - Variation 3 Exact Specification */}
+      <section className="p-6 sm:p-10 lg:p-12 border-b-[1.5px] border-[#1a1a18] flex flex-col lg:flex-row lg:items-center justify-between gap-8 bg-[#fdfdfc]">
+        <div className="space-y-3 max-w-2xl">
+          <div className="metadata">
+            {config.examTitle || 'Sumatif Tengah Semester'} • {config.semester ? `Semester ${config.semester.toUpperCase()}` : ''} {config.academicYear}
           </div>
-
-          <h2 className="font-syne text-3xl sm:text-4xl md:text-5xl font-extrabold tracking-tight leading-[0.95] text-white uppercase">
-            {config.examTitle || 'SUMATIF TENGAH SEMESTER (STS)'}
-          </h2>
-
-          <p className="text-white/60 text-sm max-w-2xl font-normal leading-relaxed">
-            {config.schoolName || 'SMK YAK 1'} — Platform terintegrasi manajemen ujian, pembagian ruang sistem silang otomatis, penugasan pengawas, denah bangku, serta pencetakan kartu ujian A4 &amp; dokumen presensi.
+          <h1 className="font-cormorant text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-[#1a1a18] leading-[0.95] m-0">
+            SIM Ujian Terintegrasi
+          </h1>
+          <p className="font-normal text-sm sm:text-base text-[#1a1a18]/70 leading-relaxed max-w-xl pt-1">
+            Platform otomasi pembagian sistem silang antar rombel, visualisasi denah bangku, serta pencetakan kartu ujian resmi untuk {config.schoolName || 'SMK YAK 1'}.
           </p>
+
+          {/* Program Studi Partition Notice */}
+          <div className="pt-2 flex flex-wrap items-center gap-2 font-roboto-mono text-[11px] text-[#1a1a18]">
+            <span className="px-2 py-0.5 border border-[#1a1a18] bg-[#f4f4f0] font-semibold">
+              ATURAN JURUSAN:
+            </span>
+            <span className="text-[#2e4cff] font-bold">R.01 – 05: {major1Title}</span>
+            <span className="text-[#1a1a18]/30">|</span>
+            <span className="text-emerald-700 font-bold">R.06+: {major2Title}</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 no-print">
+        <div className="flex flex-col sm:flex-row lg:flex-col items-start lg:items-end gap-3 shrink-0 no-print">
           <button
-            onClick={handleOpenNewTab}
-            className="btn-secondary-v2"
+            onClick={handlePrintCards}
+            className="btn-black-accent w-full sm:w-auto"
           >
-            <ExternalLink className="w-3.5 h-3.5" />
-            <span>TAB BARU</span>
+            <Printer className="w-4 h-4" />
+            <span>Cetak Kartu Siswa</span>
           </button>
-          <button
-            onClick={handlePrint}
-            className="btn-primary-v2"
-          >
-            <Printer className="w-3.5 h-3.5" />
-            <span>CETAK</span>
-          </button>
-        </div>
-      </header>
-
-      {/* Program Studi Room Partition Rule Banner */}
-      <div className="bg-[#1f2833]/80 border border-white/10 p-4 rounded-xs flex flex-wrap items-center justify-between gap-3 text-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xs bg-[#45a29e] text-[#0b0c10] flex items-center justify-center font-bold shrink-0">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="font-bold text-white flex items-center gap-2">
-              <span className="font-syne tracking-wide uppercase">Aturan Penempatan Ruang Berdasarkan Program Studi</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-xs bg-[#45a29e]/20 text-[#45a29e] font-space-mono font-bold">AKTIF</span>
-            </div>
-            <div className="text-[11px] text-white/60 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 font-space-mono">
-              <span>🔵 Ruang 01 – 05: <strong className="text-white">{major1Title}</strong></span>
-              <span className="text-white/20">•</span>
-              <span>🟢 Ruang 06 – Seterusnya: <strong className="text-white">{major2Title}</strong></span>
-            </div>
-          </div>
-        </div>
-
-        <button
-          onClick={() => setActiveTab('rooms')}
-          className="btn-secondary-v2 text-[11px] py-1.5 px-3"
-        >
-          <span>LIHAT DETAIL RUANG &rarr;</span>
-        </button>
-      </div>
-
-      {/* GRID DASHBOARD - Variation 2 4-Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        {/* Card 1: Total Peserta */}
-        <div className="card-v2">
-          <div className="flex items-center justify-between">
-            <p className="label-mono">Total Peserta</p>
-            <Users className="w-4 h-4 text-white/30" />
-          </div>
-          <div className="my-3">
-            <div className="stat-val-v2">{totalStudents}</div>
-            <p className="label-mono text-[0.6rem]">{Object.keys(classBreakdown).length} Rombongan Belajar</p>
-          </div>
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-            <span className="text-white/40 text-[11px]">Siswa Terdaftar</span>
-            <button
-              onClick={() => setActiveTab('students')}
-              className="text-[#45a29e] hover:text-[#66fcf1] font-bold text-xs uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer"
-            >
-              Kelola <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-
-        {/* Card 2: Ruang Ujian */}
-        <div className="card-v2">
-          <div className="flex items-center justify-between">
-            <p className="label-mono">Ruang Ujian</p>
-            <DoorOpen className="w-4 h-4 text-white/30" />
-          </div>
-          <div className="my-3">
-            <div className="stat-val-v2">{rooms.length}</div>
-            <p className="label-mono text-[0.6rem]">Kapasitas {totalCapacity} Bangku</p>
-          </div>
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-            <span className="text-white/40 text-[11px]">Ruang Aktif</span>
+          <div className="flex items-center gap-2">
             <button
               onClick={() => setActiveTab('rooms')}
-              className="text-[#45a29e] hover:text-[#66fcf1] font-bold text-xs uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer"
+              className="btn-outline-black text-[11px] py-1.5 px-3"
             >
-              Atur <ArrowRight className="w-3 h-3" />
+              <span>Detail Ruangan</span>
             </button>
-          </div>
-        </div>
-
-        {/* Card 3: Status Plotting */}
-        <div className="card-v2">
-          <div className="flex items-center justify-between">
-            <p className="label-mono">Status Plotting</p>
-            {unassignedStudents === 0 ? (
-              <CheckCircle2 className="w-4 h-4 text-[#45a29e]" />
-            ) : (
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
+            {typeof window !== 'undefined' && window.self !== window.top && (
+              <a
+                href={window.location.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-outline-black text-[11px] py-1.5 px-3 inline-flex items-center gap-1.5"
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span>Tab Baru</span>
+              </a>
             )}
           </div>
-          <div className="my-3">
-            <div className="stat-val-v2">{plottingPercentage}%</div>
-            <p className="label-mono text-[0.6rem]">
-              {assignedStudents.length} / {totalStudents} Terplotting
-            </p>
-          </div>
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-            <span className="text-white/40 text-[11px]">
-              {unassignedStudents === 0 ? 'Semua terdistribusi' : `${unassignedStudents} belum dapat`}
-            </span>
-            <button
-              onClick={() => setActiveTab('seating')}
-              className="text-[#45a29e] hover:text-[#66fcf1] font-bold text-xs uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer"
-            >
-              Denah <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
         </div>
+      </section>
 
-        {/* Card 4: Kartu Ujian */}
-        <div className="card-v2">
-          <div className="flex items-center justify-between">
-            <p className="label-mono">Kartu Ujian</p>
-            <IdCard className="w-4 h-4 text-white/30" />
-          </div>
-          <div className="my-3">
-            <div className="stat-val-v2">{assignedStudents.length}</div>
-            <p className="label-mono text-[0.6rem]">Siap Cetak A4</p>
-          </div>
-          <div className="pt-2 border-t border-white/10 flex items-center justify-between text-xs">
-            <span className="text-white/40 text-[11px]">Format 4 Kartu/Lbr</span>
-            <button
-              onClick={() => setActiveTab('cards')}
-              className="text-[#45a29e] hover:text-[#66fcf1] font-bold text-xs uppercase tracking-wider inline-flex items-center gap-1 cursor-pointer"
-            >
-              Buka <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* BODY CONTENT: STATS COLUMN (1 col) + ACTION COLUMN (2 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3">
+        {/* STATS COLUMN - Left */}
+        <section className="p-6 sm:p-8 lg:p-10 border-b lg:border-b-0 lg:border-r-[1.5px] border-[#1a1a18] flex flex-col justify-between gap-8 bg-[#fdfdfc]">
+          <div className="space-y-8">
+            <div className="stat-item">
+              <h3 className="font-cormorant text-5xl sm:text-6xl font-normal text-[#1a1a18] leading-none m-0">
+                {totalStudents}
+              </h3>
+              <span className="font-roboto-mono text-xs uppercase tracking-wider text-[#1a1a18]/60 mt-1.5 block">
+                Total Peserta Terdaftar
+              </span>
+            </div>
 
-      {/* LOWER SECTION: Distribution Block (3 cols) + Workflow Block (1 col) */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Distribution Block - 3 Columns */}
-        <div className="lg:col-span-3 bg-white/[0.03] border border-dashed border-white/20 p-6 md:p-8 flex flex-col justify-between">
-          <div>
-            <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-white/10 pb-4 mb-6">
-              <div>
-                <h3 className="font-syne text-xl sm:text-2xl font-bold text-white tracking-tight uppercase">
-                  ALOKASI PESERTA
+            <div className="stat-item">
+              <h3 className="font-cormorant text-5xl sm:text-6xl font-normal text-[#1a1a18] leading-none m-0">
+                {rooms.length}
+              </h3>
+              <span className="font-roboto-mono text-xs uppercase tracking-wider text-[#1a1a18]/60 mt-1.5 block">
+                Ruang Ujian Tersedia
+              </span>
+            </div>
+
+            <div className="stat-item">
+              <div className="flex items-baseline gap-2">
+                <h3 className="font-cormorant text-5xl sm:text-6xl font-normal text-[#1a1a18] leading-none m-0">
+                  {plottingPercentage}%
                 </h3>
-                <p className="text-xs text-white/60 mt-1">
-                  Keterisian setiap ruangan ujian berdasarkan nomor urut dan pembagian program studi resmi.
-                </p>
+                {unassignedStudents === 0 ? (
+                  <CheckCircle2 className="w-5 h-5 text-[#2e4cff]" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-amber-600" />
+                )}
               </div>
-              <p className="label-mono text-white/80">{rooms.length} RUANG AKTIF</p>
-            </div>
-
-            {/* Room Grid Cells */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-              {rooms.map((room) => {
-                const count = students.filter((s) => s.roomId === room.id).length;
-                const cap = room.capacity || 40;
-                const isFull = count >= cap;
-                return (
-                  <div
-                    key={room.id}
-                    className={`p-2.5 text-center text-xs font-space-mono transition-all rounded-xs ${
-                      isFull
-                        ? 'bg-[#45a29e] text-[#0b0c10] font-bold border-none shadow-md'
-                        : count > 0
-                        ? 'bg-[#1f2833] text-white border border-white/20'
-                        : 'bg-transparent text-white/40 border border-white/10'
-                    }`}
-                  >
-                    <div className="font-bold tracking-wider">{room.name}</div>
-                    <div className="text-[11px] opacity-90 mt-0.5">
-                      [{count}/{cap}]
-                    </div>
-                  </div>
-                );
-              })}
+              <span className="font-roboto-mono text-xs uppercase tracking-wider text-[#1a1a18]/60 mt-1.5 block">
+                Plotting Status ({assignedStudents.length}/{totalStudents} Siswa)
+              </span>
             </div>
           </div>
 
-          {/* Execution Button Group */}
-          <div className="flex flex-wrap items-center gap-3.5 mt-8 pt-6 border-t border-white/10 no-print">
-            <button
-              onClick={onDistributeCross}
-              className="btn-primary-v2"
-            >
-              <Shuffle className="w-3.5 h-3.5" />
-              <span>JALANKAN SISTEM SILANG</span>
-            </button>
-            <button
-              onClick={onDistributeSequential}
-              className="btn-secondary-v2"
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>JALANKAN BERURUTAN</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('seating')}
-              className="btn-secondary-v2"
-            >
-              <span>LIHAT DENAH MEJA</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Workflow Block - 1 Column */}
-        <div className="lg:col-span-1 border border-white/30 bg-[#1f2833]/70 p-6 flex flex-col justify-between">
-          <div>
-            <p className="label-mono mb-6 text-white font-bold border-b border-white/10 pb-2">
-              ALUR KERJA PANITIA
-            </p>
-
-            <div className="space-y-4">
+          {/* System Workflow section */}
+          <div className="pt-6 border-t border-[#1a1a18]/20 mt-4">
+            <div className="metadata mb-2.5">System Workflow</div>
+            <div className="font-roboto-mono text-[11px] leading-relaxed text-[#1a1a18]/75 space-y-1">
               <div 
                 onClick={() => setActiveTab('config')}
-                className="step-v2 cursor-pointer group"
+                className="hover:text-[#2e4cff] cursor-pointer transition-colors"
               >
-                <p className="label-mono group-hover:text-[#45a29e] transition-colors">01 Identitas</p>
-                <p className="text-xs text-white/80 font-medium">Atur kop &amp; kepsek</p>
+                01. Identitas &amp; Kop Surat
               </div>
-
               <div 
                 onClick={() => setActiveTab('students')}
-                className="step-v2 cursor-pointer group"
+                className="hover:text-[#2e4cff] cursor-pointer transition-colors"
               >
-                <p className="label-mono group-hover:text-[#45a29e] transition-colors">02 Peserta</p>
-                <p className="text-xs text-white/80 font-medium">Generate nomor ujian</p>
+                02. Import Peserta Excel / Generate No.
               </div>
-
               <div 
                 onClick={() => setActiveTab('rooms')}
-                className="step-v2 cursor-pointer group"
+                className="hover:text-[#2e4cff] cursor-pointer transition-colors"
               >
-                <p className="label-mono group-hover:text-[#45a29e] transition-colors">03 Plotting</p>
-                <p className="text-xs text-white/80 font-medium">Distribusi silang</p>
+                03. Run Shuffle Protocol (Silang)
               </div>
-
+              <div 
+                onClick={() => setActiveTab('seating')}
+                className="hover:text-[#2e4cff] cursor-pointer transition-colors"
+              >
+                04. Verify Seating Plan (Denah Bangku)
+              </div>
               <div 
                 onClick={() => setActiveTab('cards')}
-                className="step-v2 cursor-pointer group"
+                className="hover:text-[#2e4cff] cursor-pointer transition-colors"
               >
-                <p className="label-mono group-hover:text-[#45a29e] transition-colors">04 Cetak</p>
-                <p className="text-xs text-white/80 font-medium">Kartu &amp; Berita Acara</p>
+                05. Final Document Print (Kartu &amp; Presensi)
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ACTION COLUMN - Right (spans 2 cols) */}
+        <section className="lg:col-span-2 p-6 sm:p-8 lg:p-10 bg-[#f4f4f0] overflow-y-auto flex flex-col justify-between">
+          <div>
+            {/* 2 NEO-BRUTALIST PROTOCOL CARDS with 6px SOLID BLACK SHADOW */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Card 1: Sistem Silang */}
+              <div className="block-card">
+                <div className="metadata text-[#1a1a18]">Protocol Selection</div>
+                <h4 className="font-cormorant text-2xl font-bold text-[#1a1a18] leading-tight m-0">
+                  Sistem Silang Antar Kelas
+                </h4>
+                <p className="text-xs text-[#1a1a18]/75 leading-relaxed m-0">
+                  Menyilangkan peserta antar tingkatan di setiap ruangan dengan partisi program studi resmi. Menjamin integritas dan ketertiban ruang ujian.
+                </p>
+                <div className="pt-2 mt-auto">
+                  <button
+                    onClick={onDistributeCross}
+                    className="btn-black w-full"
+                  >
+                    <span>Jalankan Sistem Silang</span>
+                  </button>
+                </div>
               </div>
 
-              <div 
-                onClick={() => setActiveTab('schedules')}
-                className="step-v2 cursor-pointer group"
-              >
-                <p className="label-mono group-hover:text-[#45a29e] transition-colors">05 Jadwal</p>
-                <p className="text-xs text-white/80 font-medium">
-                  {schedules.length > 0 ? `${schedules.length} Sesi Terdaftar` : 'Atur sesi mata pelajaran'}
+              {/* Card 2: Sistem Berurutan */}
+              <div className="block-card">
+                <div className="metadata text-[#1a1a18]">Protocol Selection</div>
+                <h4 className="font-cormorant text-2xl font-bold text-[#1a1a18] leading-tight m-0">
+                  Sistem Berurutan per Rombel
+                </h4>
+                <p className="text-xs text-[#1a1a18]/75 leading-relaxed m-0">
+                  Mengisi ruangan berurutan berdasarkan rombongan belajar dan nomor urut siswa dari Ruang 01 sampai selesai.
                 </p>
+                <div className="pt-2 mt-auto">
+                  <button
+                    onClick={onDistributeSequential}
+                    className="btn-outline-black w-full"
+                  >
+                    <span>Jalankan Berurutan</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* ROOM GRID - Variation 3 Exact 8-Column Grid */}
+            <div className="mt-8 pt-6 border-t border-[#1a1a18]/15">
+              <div className="flex items-center justify-between mb-4">
+                <div className="font-roboto-mono text-xs uppercase tracking-wider font-semibold text-[#1a1a18]">
+                  Alokasi Ruang Ujian ({rooms.length} Ruang Aktif)
+                </div>
+                <button
+                  onClick={() => setActiveTab('rooms')}
+                  className="font-roboto-mono text-[11px] text-[#2e4cff] hover:underline uppercase inline-flex items-center gap-1 cursor-pointer font-bold"
+                >
+                  Detail Ruang <ArrowRight className="w-3 h-3" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                {rooms.map((room) => {
+                  const count = students.filter((s) => s.roomId === room.id).length;
+                  const isAssigned = count > 0;
+                  const shortName = room.name.replace('Ruang ', 'R');
+                  return (
+                    <div
+                      key={room.id}
+                      onClick={() => setActiveTab('seating')}
+                      title={`${room.name}: ${count}/${room.capacity} Siswa`}
+                      className={`room-tag cursor-pointer ${isAssigned ? 'active' : ''}`}
+                    >
+                      {shortName} ({count})
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
 
-          <div className="mt-8 pt-4 border-t border-white/10">
+          {/* Quick Nav shortcut banner */}
+          <div className="mt-8 pt-4 border-t border-[#1a1a18]/15 flex flex-wrap items-center justify-between gap-3 text-xs font-roboto-mono">
+            <span className="text-[#1a1a18]/60">
+              Format Cetak Resmi A4: 4 Kartu/Lembar • Stiker Meja • Berita Acara
+            </span>
             <button
-              onClick={() => setActiveTab('cards')}
-              className="btn-primary-v2 w-full text-center text-xs py-2.5"
+              onClick={handleOpenCards}
+              className="font-bold text-[#2e4cff] hover:underline uppercase inline-flex items-center gap-1 cursor-pointer"
             >
-              <span>BUKA KARTU UJIAN</span>
+              Lihat Preview Kartu Ujian &rarr;
             </button>
           </div>
-        </div>
+        </section>
       </div>
 
-      {/* FOOTER - Variation 2 Exact Specification */}
-      <footer className="border-t border-white/10 pt-6 mt-12 flex flex-col sm:flex-row justify-between items-center gap-3 text-center sm:text-left no-print">
-        <p className="label-mono">
-          {config.schoolName || 'SMK YAK 1'} — SISTEM INFORMASI MANAJEMEN UJIAN SEKOLAH
-        </p>
-        <p className="label-mono opacity-40">
-          © 2026 EXAM-SYNC CORE
-        </p>
+      {/* FOOTER - Variation 3 Exact Specification */}
+      <footer className="p-4 sm:p-6 border-t-[1.5px] border-[#1a1a18] flex flex-col sm:flex-row justify-between items-center gap-2 font-roboto-mono text-xs text-[#1a1a18]/70 bg-[#fdfdfc] no-print">
+        <div>Sistem Informasi Manajemen Ujian {config.schoolName || 'SMK YAK 1'}</div>
+        <div>Mendukung Kurikulum Nasional • v2.0.26</div>
       </footer>
     </div>
   );
