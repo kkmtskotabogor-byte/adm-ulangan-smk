@@ -1,94 +1,201 @@
 import { ExamScheduleItem } from '../types';
 
 /**
- * Jadwal Asesmen / STS SMK YAK 1 BOGOR
- * Program Keahlian Administrasi Perkantoran & Bisnis Digital
+ * Jadwal STS Ganjil SMK YAK 1
+ * Tahun Pelajaran 2026/2027
+ * Sesuai dokumen resmi lampiran jadwal sekolah
  */
 export const SMK_YAK_1_STS_SCHEDULE: ExamScheduleItem[] = [
-  // 1. Senin
+  // 1. Senin/28 September 2026
   {
     id: 'smk-yak-1',
     dayName: 'Senin',
     date: '28 September 2026',
-    sessionTime: '07.30 - 09.00',
-    subject: 'Pendidikan Agama & Budi Pekerti',
+    sessionTime: '13.00-14.00',
+    subject: 'Pendidikan Agama Islam dan Budi Pekerti',
     targetLevel: 'Semua Kelas',
+    isBreak: false,
   },
   {
     id: 'smk-yak-2',
     dayName: 'Senin',
     date: '28 September 2026',
-    sessionTime: '09.30 - 11.00',
-    subject: 'Bahasa Indonesia',
+    sessionTime: '14.00-14.30',
+    subject: 'Istirahat',
     targetLevel: 'Semua Kelas',
+    isBreak: true,
   },
-  // 2. Selasa
   {
     id: 'smk-yak-3',
-    dayName: 'Selasa',
-    date: '29 September 2026',
-    sessionTime: '07.30 - 09.00',
-    subject: 'Matematika Terapan',
+    dayName: 'Senin',
+    date: '28 September 2026',
+    sessionTime: '14.30-15.30',
+    subject: 'Bahasa Indonesia',
     targetLevel: 'Semua Kelas',
+    isBreak: false,
   },
+
+  // 2. Selasa/29 September 2026
   {
     id: 'smk-yak-4',
     dayName: 'Selasa',
     date: '29 September 2026',
-    sessionTime: '09.30 - 11.00',
-    subject: 'Pendidikan Pancasila (PPKn)',
+    sessionTime: '13.00-14.00',
+    subject: 'PPKN',
     targetLevel: 'Semua Kelas',
+    isBreak: false,
   },
-  // 3. Rabu
   {
     id: 'smk-yak-5',
-    dayName: 'Rabu',
-    date: '30 September 2026',
-    sessionTime: '07.30 - 09.00',
-    subject: 'Bahasa Inggris & Komunikasi Bisnis',
+    dayName: 'Selasa',
+    date: '29 September 2026',
+    sessionTime: '14.00-14.30',
+    subject: 'Istirahat',
     targetLevel: 'Semua Kelas',
+    isBreak: true,
   },
   {
     id: 'smk-yak-6',
-    dayName: 'Rabu',
-    date: '30 September 2026',
-    sessionTime: '09.30 - 11.00',
-    subject: 'Dasar-Dasar Program Keahlian',
+    dayName: 'Selasa',
+    date: '29 September 2026',
+    sessionTime: '14.30-15.30',
+    subject: 'Bahasa Inggris',
     targetLevel: 'Semua Kelas',
+    isBreak: false,
   },
-  // 4. Kamis
+
+  // 3. Rabu/30 September 2026
   {
     id: 'smk-yak-7',
-    dayName: 'Kamis',
-    date: '01 Oktober 2026',
-    sessionTime: '07.30 - 09.00',
-    subject: 'Konsentrasi Keahlian (AP / BD)',
+    dayName: 'Rabu',
+    date: '30 September 2026',
+    sessionTime: '13.00-14.00',
+    subject: 'Bahasa Sunda',
     targetLevel: 'Semua Kelas',
+    isBreak: false,
   },
   {
     id: 'smk-yak-8',
-    dayName: 'Kamis',
-    date: '01 Oktober 2026',
-    sessionTime: '09.30 - 11.00',
-    subject: 'Projek Kreatif & Kewirausahaan (PKK)',
+    dayName: 'Rabu',
+    date: '30 September 2026',
+    sessionTime: '14.00-14.30',
+    subject: 'Istirahat',
     targetLevel: 'Semua Kelas',
+    isBreak: true,
   },
-  // 5. Jumat
   {
     id: 'smk-yak-9',
-    dayName: 'Jumat',
-    date: '02 Oktober 2026',
-    sessionTime: '07.30 - 09.00',
-    subject: 'Informatika & Bisnis Digital',
+    dayName: 'Rabu',
+    date: '30 September 2026',
+    sessionTime: '14.30-15.30',
+    subject: 'Seni Budaya/Manajemen Logistik/Bisnis Digital',
     targetLevel: 'Semua Kelas',
+    isBreak: false,
   },
   {
     id: 'smk-yak-10',
+    dayName: 'Rabu',
+    date: '30 September 2026',
+    sessionTime: '15.30-16.30',
+    subject: 'Informatika',
+    targetLevel: 'Semua Kelas',
+    isBreak: false,
+  },
+
+  // 4. Kamis/01 Oktober 2026
+  {
+    id: 'smk-yak-11',
+    dayName: 'Kamis',
+    date: '01 Oktober 2026',
+    sessionTime: '13.00-14.00',
+    subject: 'PKWU/Sejarah Indonesia',
+    targetLevel: 'Semua Kelas',
+    isBreak: false,
+  },
+  {
+    id: 'smk-yak-12',
+    dayName: 'Kamis',
+    date: '01 Oktober 2026',
+    sessionTime: '14.00-14.30',
+    subject: 'Istirahat',
+    targetLevel: 'Semua Kelas',
+    isBreak: true,
+  },
+  {
+    id: 'smk-yak-13',
+    dayName: 'Kamis',
+    date: '01 Oktober 2026',
+    sessionTime: '14.30-15.30',
+    subject: 'Aqidah Akhlak',
+    targetLevel: 'Semua Kelas',
+    isBreak: false,
+  },
+  {
+    id: 'smk-yak-14',
+    dayName: 'Kamis',
+    date: '01 Oktober 2026',
+    sessionTime: '15.30-16.30',
+    subject: 'Koding dan Kecerdasan Artifisial',
+    targetLevel: 'Semua Kelas',
+    isBreak: false,
+  },
+
+  // 5. Jumat/02 Oktober 2026
+  {
+    id: 'smk-yak-15',
     dayName: 'Jumat',
     date: '02 Oktober 2026',
-    sessionTime: '09.30 - 11.00',
-    subject: 'Projek IPAS',
+    sessionTime: '13.00-14.00',
+    subject: 'Matematika',
     targetLevel: 'Semua Kelas',
+    isBreak: false,
+  },
+  {
+    id: 'smk-yak-16',
+    dayName: 'Jumat',
+    date: '02 Oktober 2026',
+    sessionTime: '14.00-14.30',
+    subject: 'Istirahat',
+    targetLevel: 'Semua Kelas',
+    isBreak: true,
+  },
+  {
+    id: 'smk-yak-17',
+    dayName: 'Jumat',
+    date: '02 Oktober 2026',
+    sessionTime: '14.30-15.30',
+    subject: 'Penjasorkes',
+    targetLevel: 'Semua Kelas',
+    isBreak: false,
+  },
+
+  // 6. Sabtu/03 Oktober 2026
+  {
+    id: 'smk-yak-18',
+    dayName: 'Sabtu',
+    date: '03 Oktober 2026',
+    sessionTime: '13.00-14.00',
+    subject: 'Produktif',
+    targetLevel: 'Semua Kelas',
+    isBreak: false,
+  },
+  {
+    id: 'smk-yak-19',
+    dayName: 'Sabtu',
+    date: '03 Oktober 2026',
+    sessionTime: '14.00-14.30',
+    subject: 'Istirahat',
+    targetLevel: 'Semua Kelas',
+    isBreak: true,
+  },
+  {
+    id: 'smk-yak-20',
+    dayName: 'Sabtu',
+    date: '03 Oktober 2026',
+    sessionTime: '14.30-15.30',
+    subject: 'Ilmu Pengetahuan Alam',
+    targetLevel: 'Semua Kelas',
+    isBreak: false,
   },
 ];
 
@@ -242,7 +349,7 @@ export const MTS_MANBAUL_ISLAM_STS_SCHEDULE: ExamScheduleItem[] = [
   },
 ];
 
-export const IMAGE_SAMPLE_SCHEDULE: ExamScheduleItem[] = MTS_MANBAUL_ISLAM_STS_SCHEDULE;
+export const IMAGE_SAMPLE_SCHEDULE: ExamScheduleItem[] = SMK_YAK_1_STS_SCHEDULE;
 
 
 export const MTS_MADRASAH_SCHEDULE: ExamScheduleItem[] = [

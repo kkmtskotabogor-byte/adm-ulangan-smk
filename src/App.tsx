@@ -52,7 +52,7 @@ const STORAGE_KEYS = {
   STUDENTS: 'sim_ujian_students_mts_v2',
   ROOMS: 'sim_ujian_rooms_mts_v2',
   PROCTORS: 'sim_ujian_proctors_mts_v2',
-  SCHEDULES: 'sim_ujian_schedules_mts_v3',
+  SCHEDULES: 'sim_ujian_schedules_smk_yak_v4',
   AUTH_USER: 'sim_ujian_auth_user_v2',
 };
 
@@ -256,6 +256,20 @@ export default function App() {
     return () => {
       unsubs.forEach((unsub) => unsub());
     };
+  }, []);
+
+  // Ensure the official SMK YAK 1 STS schedule is active
+  useEffect(() => {
+    const isYak1Schedule = schedules.some((s) =>
+      s.subject.toLowerCase().includes('koding') ||
+      s.subject.toLowerCase().includes('manajemen logistik') ||
+      (s.sessionTime === '13.00-14.00' && s.dayName === 'Senin')
+    );
+    if (!isYak1Schedule || schedules.length === 0) {
+      setSchedules(initialSchedule);
+      localStorage.setItem(STORAGE_KEYS.SCHEDULES, JSON.stringify(initialSchedule));
+      syncSchedulesToCloud(initialSchedule).catch((e) => console.warn('Cloud sync note:', e));
+    }
   }, []);
 
   // Sync to localStorage
@@ -661,7 +675,7 @@ export default function App() {
 
   // Reset to initial full realistic dataset
   const handleResetData = () => {
-    if (window.confirm('Apakah Anda yakin ingin memulihkan data MTs Manbaul Islam (463 siswa, 24 ruang)?')) {
+    if (window.confirm('Apakah Anda yakin ingin memulihkan data SIM Ujian SMK YAK 1 (200 siswa, 10 ruang, jadwal resmi STS 20 sesi)?')) {
       const { updatedStudents } = distributeCrossClass(initialStudents, initialRooms);
       setConfig(initialConfig);
       setRooms(initialRooms);

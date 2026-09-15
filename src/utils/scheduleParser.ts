@@ -2,29 +2,26 @@ import { ExamScheduleItem } from '../types';
 import * as XLSX from 'xlsx';
 
 export const USER_UPLOADED_SCHEDULE_TEMPLATE_RAW = `No;Hari/ Tanggal;Mata Pelajaran;Waktu
-1;Senin/28 September 2026;Bahasa Indonesia;07.30-08.30
-2;Senin/28 September 2026;IPS;08.30-09.30
-3;Senin/28 September 2026;Istirahat;09.30-10.00
-4;Senin/28 September 2026;TIK;10.00-11.00
-5;Selasa/29 September 2026;Matematika;07.30-08.30
-6;Selasa/29 September 2026;Alquran Hadist;08.30-09.30
-7;Selasa/29 September 2026;Istirahat;09.30-10.00
-8;Selasa/29 September 2026;Prakarya;10.00-11.00
-9;Rabu/30 September 2026;Bahasa Inggris;07.30-08.30
-10;Rabu/30 September 2026;Fiqih;08.30-09.30
-11;Rabu/30 September 2026;Istirahat;09.30-10.00
-12;Rabu/30 September 2026;Seni Budaya;10.00-11.00
-13;Kamis/31 September 2026;IPA;07.30-08.30
-14;Kamis/31 September 2026;Bahasa Sunda;08.30-09.30
-15;Kamis/31 September 2026;Istirahat;09.30-10.00
-16;Kamis/31 September 2026;SKI;10.00-11.00
-17;Jumat/01 Oktober 2026;Pendidikan Pancasila;07.30-08.30
-18;Jumat/01 Oktober 2026;Istirahat;08.30-09.00
-19;Jumat/01 Oktober 2026;Bahasa Arab;09.00-10.00
-20;Sabtu/02 Oktober 2026;Akidah Akhlak;07.30-08.30
-21;Sabtu/02 Oktober 2026;BTQ;08.30-09.30
-22;Sabtu/02 Oktober 2026;Istirahat;09.30-10.00
-23;Sabtu/02 Oktober 2026;Penjasorkes;10.00-11.00`;
+1;Senin/28 September 2026;Pendidikan Agama Islam dan Budi Pekerti;13.00-14.00
+2;Senin/28 September 2026;Istirahat;14.00-14.30
+3;Senin/28 September 2026;Bahasa Indonesia;14.30-15.30
+4;Selasa/29 September 2026;PPKN;13.00-14.00
+5;Selasa/29 September 2026;Istirahat;14.00-14.30
+6;Selasa/29 September 2026;Bahasa Inggris;14.30-15.30
+7;Rabu/30 September 2026;Bahasa Sunda;13.00-14.00
+8;Rabu/30 September 2026;Istirahat;14.00-14.30
+9;Rabu/30 September 2026;Seni Budaya/Manajemen Logistik/Bisnis Digital;14.30-15.30
+10;Rabu/30 September 2026;Informatika;15.30-16.30
+11;Kamis/01 Oktober 2026;PKWU/Sejarah Indonesia;13.00-14.00
+12;Kamis/01 Oktober 2026;Istirahat;14.00-14.30
+13;Kamis/01 Oktober 2026;Aqidah Akhlak;14.30-15.30
+14;Kamis/01 Oktober 2026;Koding dan Kecerdasan Artifisial;15.30-16.30
+15;Jumat/02 Oktober 2026;Matematika;13.00-14.00
+16;Jumat/02 Oktober 2026;Istirahat;14.00-14.30
+17;Jumat/02 Oktober 2026;Penjasorkes;14.30-15.30
+18;Sabtu/03 Oktober 2026;Produktif;13.00-14.00
+19;Sabtu/03 Oktober 2026;Istirahat;14.00-14.30
+20;Sabtu/03 Oktober 2026;Ilmu Pengetahuan Alam;14.30-15.30`;
 
 export interface ParsedScheduleResult {
   schedules: ExamScheduleItem[];

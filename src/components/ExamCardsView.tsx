@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { ExamConfig, ExamRoom, Student, ExamScheduleItem } from '../types';
 import { BarcodeSVG } from '../utils/barcode';
 import { 
+  SMK_YAK_1_STS_SCHEDULE,
   MTS_MANBAUL_ISLAM_STS_SCHEDULE,
   IMAGE_SAMPLE_SCHEDULE, 
   MTS_MADRASAH_SCHEDULE 
@@ -164,7 +165,7 @@ export const ExamCardsView: React.FC<ExamCardsViewProps> = ({
     return propSchedules && propSchedules.length > 0 ? 'custom' : 'sts';
   });
   const [localSchedules, setLocalSchedules] = useState<ExamScheduleItem[]>(() => {
-    return propSchedules && propSchedules.length > 0 ? propSchedules : MTS_MANBAUL_ISLAM_STS_SCHEDULE;
+    return propSchedules && propSchedules.length > 0 ? propSchedules : SMK_YAK_1_STS_SCHEDULE;
   });
   const [includeBreaksOnCard, setIncludeBreaksOnCard] = useState<boolean>(false);
 
@@ -303,8 +304,8 @@ export const ExamCardsView: React.FC<ExamCardsViewProps> = ({
     }
 
     if (preset === 'sts') {
-      setLocalSchedules(MTS_MANBAUL_ISLAM_STS_SCHEDULE);
-      if (onUpdateSchedules) onUpdateSchedules(MTS_MANBAUL_ISLAM_STS_SCHEDULE);
+      setLocalSchedules(SMK_YAK_1_STS_SCHEDULE);
+      if (onUpdateSchedules) onUpdateSchedules(SMK_YAK_1_STS_SCHEDULE);
     } else if (preset === 'sample_image') {
       setLocalSchedules(IMAGE_SAMPLE_SCHEDULE);
       if (onUpdateSchedules) onUpdateSchedules(IMAGE_SAMPLE_SCHEDULE);
@@ -1003,9 +1004,9 @@ export const ExamCardsView: React.FC<ExamCardsViewProps> = ({
                     ? 'bg-emerald-700 text-white shadow-xs'
                     : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
-                title="17 Sesi (Senin-Sabtu): B. Indo, IPS, TIK, Mat, Alquran Hadist, Prakarya, B. Ing, Fiqih, Seni Budaya, IPA, B. Sunda, SKI, PKn, B. Arab, Akidah, BTQ, Penjas"
+                title="Jadwal Resmi STS SMK YAK 1 (14 Mapel + Istirahat): PAI, B. Indonesia, PPKN, B. Inggris, B. Sunda, Seni Budaya/Manajemen Logistik/Bisnis Digital, Informatika, PKWU/Sejarah, Aqidah Akhlak, Koding & Kecerdasan Artifisial, Matematika, Penjasorkes, Produktif, IPA"
               >
-                STS (17 Mapel)
+                STS SMK YAK 1 (14 Mapel)
               </button>
               <button
                 type="button"

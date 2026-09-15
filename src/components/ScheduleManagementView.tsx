@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { ScheduleImportModal } from './ScheduleImportModal';
 import { exportSchedulesToCsv, downloadCsvFile, USER_UPLOADED_SCHEDULE_TEMPLATE_RAW, parseScheduleText } from '../utils/scheduleParser';
-import { MTS_MANBAUL_ISLAM_STS_SCHEDULE } from '../data/schedulePresets';
+import { SMK_YAK_1_STS_SCHEDULE } from '../data/schedulePresets';
 
 interface ScheduleManagementViewProps {
   config: ExamConfig;
@@ -40,23 +40,20 @@ interface ScheduleManagementViewProps {
 }
 
 const COMMON_SUBJECT_SUGGESTIONS = [
+  'Pendidikan Agama Islam dan Budi Pekerti',
   'Bahasa Indonesia',
-  'Matematika',
-  'Ilmu Pengetahuan Alam (IPA)',
-  'Ilmu Pengetahuan Sosial (IPS)',
+  'PPKN',
   'Bahasa Inggris',
-  'Pendidikan Pancasila (PPKn)',
-  'Alquran Hadist',
-  'Akidah Akhlak',
-  'Fiqih',
-  'Sejarah Kebudayaan Islam (SKI)',
-  'Bahasa Arab',
   'Bahasa Sunda',
-  'TIK / Informatika',
-  'Prakarya',
-  'Seni Budaya',
-  'Penjasorkes / PJOK',
-  'BTQ (Baca Tulis Al-Quran)',
+  'Seni Budaya/Manajemen Logistik/Bisnis Digital',
+  'Informatika',
+  'PKWU/Sejarah Indonesia',
+  'Aqidah Akhlak',
+  'Koding dan Kecerdasan Artifisial',
+  'Matematika',
+  'Penjasorkes',
+  'Produktif',
+  'Ilmu Pengetahuan Alam',
   'Istirahat',
 ];
 
@@ -163,11 +160,10 @@ export const ScheduleManagementView: React.FC<ScheduleManagementViewProps> = ({
     }
   };
 
-  // Quick reset to the 23-session user template
+  // Quick reset to the 20-session official SMK YAK 1 schedule
   const handleResetToUserTemplate = () => {
-    if (window.confirm('Muat ulang 23 sesi jadwal ulangan STS (sesuai template yang Anda upload)?')) {
-      const result = parseScheduleText(USER_UPLOADED_SCHEDULE_TEMPLATE_RAW);
-      onUpdateSchedules(result.schedules);
+    if (window.confirm('Muat ulang 20 sesi jadwal resmi STS Ganjil SMK YAK 1 (14 mapel + 6 istirahat, sesuai dokumen resmi sekolah)?')) {
+      onUpdateSchedules(SMK_YAK_1_STS_SCHEDULE);
     }
   };
 
@@ -353,7 +349,7 @@ export const ScheduleManagementView: React.FC<ScheduleManagementViewProps> = ({
               type="button"
               onClick={handleResetToUserTemplate}
               className="p-2 text-slate-500 hover:text-amber-600 bg-white hover:bg-amber-50 border border-slate-300 rounded-xl transition-all cursor-pointer"
-              title="Muat Ulang Template 23 Sesi STS Saya"
+              title="Muat Ulang Jadwal Resmi STS SMK YAK 1 (20 Sesi)"
             >
               <RotateCcw className="w-4 h-4" />
             </button>
