@@ -179,34 +179,18 @@ export const ExamCardsView: React.FC<ExamCardsViewProps> = ({
     }
   }, [propSchedules]);
 
-  // Dynamically compute default schedule title based on active config (examType, semester, classes)
+  // Dynamically compute default schedule title based on active config (examType, semester)
   const defaultScheduleTitle = useMemo(() => {
     const type = config.examType || 'STS';
     const sem = config.semester ? config.semester.toUpperCase() : 'GANJIL';
+    return `JADWAL ${type} ${sem}`;
+  }, [config.examType, config.semester]);
 
-    // Extract distinct levels from student classes (e.g. VII, VIII, IX)
-    const levels = new Set<string>();
-    students.forEach((s) => {
-      const match = s.className.match(/^(VII|VIII|IX|X|XI|XII|\d+)/i);
-      if (match) levels.add(match[1].toUpperCase());
-    });
-    
-    let levelStr = 'KELAS VII DAN VIII';
-    if (levels.size > 0) {
-      const sorted = Array.from(levels);
-      if (sorted.length === 1) levelStr = `KELAS ${sorted[0]}`;
-      else if (sorted.length === 2) levelStr = `KELAS ${sorted[0]} DAN ${sorted[1]}`;
-      else levelStr = `KELAS ${sorted.slice(0, -1).join(', ')} DAN ${sorted[sorted.length - 1]}`;
-    }
-    
-    return `JADWAL ${type} ${sem} ${levelStr}`;
-  }, [config.examType, config.semester, students]);
-
-  // Allow user custom title, but discard old hardcoded "UAS" legacy titles
+  // Allow user custom title, but discard old hardcoded titles or titles containing "KELAS"
   const [customScheduleTitle, setCustomScheduleTitle] = useState<string | null>(() => {
     try {
       const saved = localStorage.getItem('custom_exam_schedule_title');
-      if (saved && (saved.includes('UAS') || saved.includes('uas'))) {
+      if (saved && (saved.includes('UAS') || saved.includes('uas') || saved.toUpperCase().includes('KELAS'))) {
         localStorage.removeItem('custom_exam_schedule_title');
         return null;
       }
@@ -1545,7 +1529,7 @@ export const ExamCardsView: React.FC<ExamCardsViewProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      const val = `JADWAL ASESMEN ${config.examType || 'STS'} KELAS VII, VIII & IX`;
+                      const val = `JADWAL ${config.examType || 'STS'} ${config.semester?.toUpperCase() || 'GANJIL'}`;
                       setCustomScheduleTitle(val);
                       try {
                         localStorage.setItem('custom_exam_schedule_title', val);
@@ -1555,7 +1539,7 @@ export const ExamCardsView: React.FC<ExamCardsViewProps> = ({
                     }}
                     className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-semibold cursor-pointer border border-slate-200"
                   >
-                    Asesmen {config.examType || 'STS'}
+                    Jadwal {config.examType || 'STS'} {config.semester?.toUpperCase() || 'GANJIL'}
                   </button>
                 </div>
               </div>
