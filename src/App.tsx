@@ -347,10 +347,15 @@ export default function App() {
   };
 
   // --- Handlers ---
-  const handleSaveConfig = (updated: ExamConfig) => {
+  const handleSaveConfig = async (updated: ExamConfig) => {
     setConfig(updated);
-    saveExamConfigToCloud(updated).catch((err) => console.warn('Cloud config save note:', err));
-    showToast('Konfigurasi identitas ujian berhasil disimpan.');
+    try {
+      await saveExamConfigToCloud(updated);
+      showToast('Konfigurasi identitas ujian & media tersinkron ke semua perangkat.');
+    } catch (err: any) {
+      console.warn('Cloud config save note:', err);
+      showToast('Tersimpan di perangkat ini. Menunggu koneksi cloud: ' + (err?.message || 'Offline'));
+    }
   };
 
   const handleAddStudent = (newStudent: Omit<Student, 'id'>) => {

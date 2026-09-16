@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { ExamCategory, ExamConfig } from '../types';
 import { 
   Settings, 
@@ -38,12 +38,19 @@ export const ConfigView: React.FC<ConfigViewProps> = ({ config, onSaveConfig }) 
   const [isProcessingLogo, setIsProcessingLogo] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Keep form data synchronized when cloud config updates or modal changes
+  useEffect(() => {
+    setFormData(config);
+  }, [config]);
+
   const handleLogoFile = async (file: File) => {
     setUploadError(null);
     setIsProcessingLogo(true);
     try {
       const dataUrl = await processLogoFile(file);
-      setFormData((prev) => ({ ...prev, logoUrl: dataUrl }));
+      const next = { ...formData, logoUrl: dataUrl };
+      setFormData(next);
+      onSaveConfig(next);
     } catch (err: any) {
       setUploadError(err.message || 'Gagal mengunggah logo');
     } finally {
@@ -70,11 +77,15 @@ export const ConfigView: React.FC<ConfigViewProps> = ({ config, onSaveConfig }) 
 
   const handleSelectPreset = (presetDataUrl: string) => {
     setUploadError(null);
-    setFormData((prev) => ({ ...prev, logoUrl: presetDataUrl }));
+    const next = { ...formData, logoUrl: presetDataUrl };
+    setFormData(next);
+    onSaveConfig(next);
   };
 
   const handleRemoveLogo = () => {
-    setFormData((prev) => ({ ...prev, logoUrl: undefined }));
+    const next = { ...formData, logoUrl: undefined };
+    setFormData(next);
+    onSaveConfig(next);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

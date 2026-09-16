@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import {
   getFirestore,
+  initializeFirestore,
   doc,
   getDocFromServer,
   setDoc,
@@ -24,9 +25,31 @@ import {
 // Initialize Firebase App
 const app = initializeApp(firebaseConfig);
 
-// CRITICAL: Initialize Firestore with custom databaseId
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+// CRITICAL: Initialize Firestore with custom databaseId and ignoreUndefinedProperties
+export const db = initializeFirestore(
+  app,
+  { ignoreUndefinedProperties: true },
+  firebaseConfig.firestoreDatabaseId
+);
 export const auth = getAuth(app);
+
+/**
+ * Strips all undefined values recursively to ensure flawless Firestore writes
+ */
+export function cleanForFirestore<T extends Record<string, any>>(obj: T): any {
+  if (obj === null || obj === undefined) return null;
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+        result[key] = cleanForFirestore(value);
+      } else {
+        result[key] = value;
+      }
+    }
+  }
+  return result;
+}
 
 // Error Handling Enum and Interface
 export enum OperationType {
@@ -127,14 +150,16 @@ export async function saveExamConfigToCloud(config: ExamConfig): Promise<void> {
   const path = 'exam_config/current';
   try {
     const docRef = doc(db, 'exam_config', 'current');
-    // Ensure clean serializable object
-    const cleanConfig = {
+    // Ensure clean serializable object with no undefined fields
+    const cleanConfig = cleanForFirestore({
       ...config,
       updatedAt: new Date().toISOString(),
-    };
+    });
     await setDoc(docRef, cleanConfig);
+    console.info('Cloud exam_config saved successfully.');
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
@@ -163,12 +188,14 @@ export function subscribeToRooms(
 export async function saveRoomToCloud(room: ExamRoom): Promise<void> {
   const path = `rooms/${room.id}`;
   try {
-    await setDoc(doc(db, 'rooms', room.id), {
+    const cleanData = cleanForFirestore({
       ...room,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'rooms', room.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
@@ -227,12 +254,14 @@ export function subscribeToStudents(
 export async function saveStudentToCloud(student: Student): Promise<void> {
   const path = `students/${student.id}`;
   try {
-    await setDoc(doc(db, 'students', student.id), {
+    const cleanData = cleanForFirestore({
       ...student,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'students', student.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
@@ -325,12 +354,14 @@ export function subscribeToProctors(
 export async function saveProctorToCloud(proctor: Proctor): Promise<void> {
   const path = `proctors/${proctor.id}`;
   try {
-    await setDoc(doc(db, 'proctors', proctor.id), {
+    const cleanData = cleanForFirestore({
       ...proctor,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'proctors', proctor.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
@@ -464,12 +495,14 @@ export async function saveAttendanceRecordToCloud(
 ): Promise<void> {
   const path = `attendance_records/${record.id}`;
   try {
-    await setDoc(doc(db, 'attendance_records', record.id), {
+    const cleanData = cleanForFirestore({
       ...record,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'attendance_records', record.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
@@ -510,13 +543,15 @@ export async function saveProctorMatrixToCloud(
 ): Promise<void> {
   const path = 'proctor_matrix/current';
   try {
-    await setDoc(doc(db, 'proctor_matrix', 'current'), {
+    const cleanData = cleanForFirestore({
       id: 'current',
       allocations,
       updatedAt: new Date().toISOString(),
     });
+    await setDoc(doc(db, 'proctor_matrix', 'current'), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
   }
 }
 
