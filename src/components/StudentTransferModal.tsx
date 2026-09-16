@@ -93,6 +93,23 @@ export const StudentTransferModal: React.FC<StudentTransferModalProps> = ({
     }
   }, [isOpen, initialStudentId, initialRoomId, initialSeatNumber]);
 
+  // Filtered students for search in Tab 1 (Called unconditionally to strictly adhere to React Rules of Hooks)
+  const filteredStudentsForSelect = useMemo(() => {
+    if (!studentSearchQuery.trim()) {
+      return students.slice(0, 30);
+    }
+    const q = studentSearchQuery.toLowerCase();
+    return students
+      .filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          s.examNumber.toLowerCase().includes(q) ||
+          s.className.toLowerCase().includes(q) ||
+          (s.roomName && s.roomName.toLowerCase().includes(q))
+      )
+      .slice(0, 50);
+  }, [students, studentSearchQuery]);
+
   if (!isOpen) return null;
 
   // Currently selected student for single transfer
@@ -126,23 +143,6 @@ export const StudentTransferModal: React.FC<StudentTransferModalProps> = ({
     }
     return cap + 1; // Room is full
   })();
-
-  // Filtered students for search in Tab 1
-  const filteredStudentsForSelect = useMemo(() => {
-    if (!studentSearchQuery.trim()) {
-      return students.slice(0, 30);
-    }
-    const q = studentSearchQuery.toLowerCase();
-    return students
-      .filter(
-        (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.examNumber.toLowerCase().includes(q) ||
-          s.className.toLowerCase().includes(q) ||
-          (s.roomName && s.roomName.toLowerCase().includes(q))
-      )
-      .slice(0, 50);
-  }, [students, studentSearchQuery]);
 
   // Students in Matrix Room
   const matrixRoom = rooms.find((r) => r.id === matrixRoomId) || rooms[0];

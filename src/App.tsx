@@ -1104,20 +1104,22 @@ export default function App() {
       </main>
 
       {/* Cross-Room Student Transfer & Seating Arrangement Modal */}
-      <StudentTransferModal
-        isOpen={showTransferModal}
-        onClose={() => setShowTransferModal(false)}
-        students={students}
-        rooms={rooms}
-        config={config}
-        initialStudentId={transferInitialStudentId}
-        initialRoomId={transferInitialRoomId}
-        initialSeatNumber={transferInitialSeatNumber}
-        onMoveStudent={handleMoveStudentToRoom}
-        onSwapStudents={handleSwapSeats}
-        onUnassignStudent={handleUnassignStudent}
-        onReorderRoomSeats={handleReorderRoomSeats}
-      />
+      {showTransferModal && (
+        <StudentTransferModal
+          isOpen={showTransferModal}
+          onClose={() => setShowTransferModal(false)}
+          students={students}
+          rooms={rooms}
+          config={config}
+          initialStudentId={transferInitialStudentId}
+          initialRoomId={transferInitialRoomId}
+          initialSeatNumber={transferInitialSeatNumber}
+          onMoveStudent={handleMoveStudentToRoom}
+          onSwapStudents={handleSwapSeats}
+          onUnassignStudent={handleUnassignStudent}
+          onReorderRoomSeats={handleReorderRoomSeats}
+        />
+      )}
 
       {/* Cloud Firestore Multi-Device Sync Modal */}
       <CloudSyncModal
