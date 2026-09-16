@@ -146,6 +146,18 @@
         "updatedAt": { "type": "string", "maxLength": 100 }
       },
       "required": ["id"]
+    },
+    "ExamStateBundle": {
+      "title": "ExamStateBundle",
+      "description": "Paket data terpadu (snapshot master) untuk sinkronisasi cepat dan hemat kuota antar-perangkat",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "updatedAt": { "type": "string", "maxLength": 100 },
+        "version": { "type": "number" },
+        "deviceId": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "updatedAt"]
     }
   },
   "firestore": {
@@ -176,6 +188,10 @@
     "/proctor_matrix/{matrixId}": {
       "schema": "ProctorMatrix",
       "description": "Alokasi jadwal pengawas silang ruang dan sesi"
+    },
+    "/exam_state/{stateId}": {
+      "schema": "ExamStateBundle",
+      "description": "Snapshot master seluruh data aplikasi untuk sinkronisasi real-time instan multi-device dalam 1x operasi baca/tulis"
     }
   }
 }

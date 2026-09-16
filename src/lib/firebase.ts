@@ -20,6 +20,7 @@ import {
   Proctor,
   ExamScheduleItem,
   ProctorAttendanceRecord,
+  MasterExamState,
 } from '../types';
 
 // Initialize Firebase App
@@ -593,11 +594,85 @@ export async function isCloudDatabaseInitialized(): Promise<boolean> {
     if (configSnap.exists()) {
       return true;
     }
+    const masterSnap = await getDocFromServer(doc(db, 'exam_state', 'master'));
+    if (masterSnap.exists()) {
+      return true;
+    }
     const roomsSnap = await getDocs(collection(db, 'rooms'));
     return !roomsSnap.empty;
   } catch (err) {
     // If check fails (offline or transient error), do NOT assume uninitialized to avoid overwriting cloud
     console.warn('isCloudDatabaseInitialized check note:', err);
     return true;
+  }
+}
+
+// Device Identification for loop-prevention and audit
+export function getLocalDeviceId(): string {
+  if (typeof window === 'undefined') return 'server';
+  let id = localStorage.getItem('SIM_EXAM_DEVICE_ID');
+  if (!id) {
+    id = `dev-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    localStorage.setItem('SIM_EXAM_DEVICE_ID', id);
+  }
+  return id;
+}
+
+// 8. Master Exam State Bundle (Single Atomic Document for Instant Real-Time Cross-Device Sync)
+// Saves quota by 99.5% (1 write vs 200+ writes) and guarantees atomic sync across phones & laptops
+export function subscribeToMasterState(
+  onUpdate: (state: MasterExamState) => void,
+  onError?: (err: unknown) => void
+) {
+  const docRef = doc(db, 'exam_state', 'master');
+  return onSnapshot(
+    docRef,
+    (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data() as MasterExamState;
+        onUpdate(data);
+      }
+    },
+    (error) => {
+      if (onError) onError(error);
+      handleFirestoreError(error, OperationType.GET, 'exam_state/master');
+    }
+  );
+}
+
+export async function saveMasterStateToCloud(
+  state: Omit<MasterExamState, 'id' | 'updatedAt' | 'deviceId'>
+): Promise<void> {
+  const path = 'exam_state/master';
+  try {
+    const cleanData = cleanForFirestore({
+      id: 'master',
+      config: state.config,
+      students: state.students,
+      rooms: state.rooms,
+      proctors: state.proctors,
+      schedules: state.schedules,
+      attendanceRecords: state.attendanceRecords || [],
+      deviceId: getLocalDeviceId(),
+      updatedAt: new Date().toISOString(),
+    });
+    await setDoc(doc(db, 'exam_state', 'master'), cleanData);
+    isCloudQuotaExhausted = false; // Successfully wrote, reset flag
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
+}
+
+export async function getMasterStateFromCloud(): Promise<MasterExamState | null> {
+  try {
+    const snap = await getDocFromServer(doc(db, 'exam_state', 'master'));
+    if (snap.exists()) {
+      return snap.data() as MasterExamState;
+    }
+    return null;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.GET, 'exam_state/master');
+    return null;
   }
 }

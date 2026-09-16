@@ -140,3 +140,16 @@ export interface AuthUser {
   avatar?: string;
   loginTime: string;
 }
+
+export interface MasterExamState {
+  id: string;
+  config: ExamConfig;
+  students: Student[];
+  rooms: ExamRoom[];
+  proctors: Proctor[];
+  schedules: ExamScheduleItem[];
+  attendanceRecords?: ProctorAttendanceRecord[];
+  updatedAt: string;
+  deviceId?: string;
+  version?: number;
+}

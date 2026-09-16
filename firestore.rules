@@ -111,5 +111,11 @@ service cloud.firestore {
       allow write: if isValidId(matrixId);
       allow delete: if isValidId(matrixId);
     }
+
+    match /exam_state/{stateId} {
+      allow read: if true;
+      allow write: if isValidId(stateId);
+      allow delete: if isValidId(stateId);
+    }
   }
 }

@@ -46,6 +46,10 @@ import {
   clearAllSchedulesFromCloud,
   subscribeToAttendanceRecords,
   isCloudDatabaseInitialized,
+  subscribeToMasterState,
+  saveMasterStateToCloud,
+  getMasterStateFromCloud,
+  getLocalDeviceId,
 } from './lib/firebase';
 import { ProctorAttendanceRecord } from './types';
 
@@ -199,26 +203,74 @@ export default function App() {
     }
   }, []);
 
-  // 1. Initialize Cloud Firestore Database if empty & Subscribe to Real-Time Updates
+  // 1. Initialize Cloud Firestore Database & Subscribe to Real-Time Updates (Atomic Master State Bundle)
   useEffect(() => {
     const unsubs: (() => void)[] = [];
 
-    // Check if cloud database already has documents; if not, initialize automatically
-    isCloudDatabaseInitialized()
-      .then((isInitialized) => {
-        if (!isInitialized) {
-          saveExamConfigToCloud(config);
-          syncRoomsToCloud(rooms);
-          syncStudentsToCloud(students);
-          syncProctorsToCloud(proctors);
-          syncSchedulesToCloud(schedules);
+    // Check Cloud Master State first to synchronize any existing remote data to this device immediately
+    getMasterStateFromCloud()
+      .then((masterState) => {
+        if (masterState) {
+          const myDevId = getLocalDeviceId();
+          // If master state exists in cloud and was saved, load it so this device matches other devices
+          if (masterState.config) setConfig(masterState.config);
+          if (masterState.rooms && masterState.rooms.length > 0) setRooms(masterState.rooms);
+          if (masterState.students && masterState.students.length > 0) setStudents(masterState.students);
+          if (masterState.proctors && masterState.proctors.length > 0) setProctors(masterState.proctors);
+          if (masterState.schedules && masterState.schedules.length > 0) setSchedules(masterState.schedules);
+          if (masterState.attendanceRecords) setAttendanceRecords(masterState.attendanceRecords);
+          setIsCloudConnected(true);
+        } else {
+          // Cloud database empty, initialize master state and individual collections
+          isCloudDatabaseInitialized().then((isInitialized) => {
+            if (!isInitialized) {
+              saveMasterStateToCloud({
+                config,
+                students,
+                rooms,
+                proctors,
+                schedules,
+                attendanceRecords,
+              }).catch(() => {});
+              saveExamConfigToCloud(config).catch(() => {});
+              syncRoomsToCloud(rooms).catch(() => {});
+              syncStudentsToCloud(students).catch(() => {});
+              syncProctorsToCloud(proctors).catch(() => {});
+              syncSchedulesToCloud(schedules).catch(() => {});
+            }
+          });
         }
       })
       .catch((err) => {
-        console.warn('Cloud database check note:', err);
+        console.warn('Master state cloud check note:', err);
       });
 
     try {
+      // Real-time listener for Atomic Master State (Cross-Device instant sync)
+      unsubs.push(
+        subscribeToMasterState(
+          (masterState) => {
+            if (masterState) {
+              const myDevId = getLocalDeviceId();
+              // Only apply if the update was pushed by another device
+              if (masterState.deviceId !== myDevId) {
+                if (masterState.config) setConfig(masterState.config);
+                if (masterState.rooms && masterState.rooms.length > 0) setRooms(masterState.rooms);
+                if (masterState.students && masterState.students.length > 0) setStudents(masterState.students);
+                if (masterState.proctors && masterState.proctors.length > 0) setProctors(masterState.proctors);
+                if (masterState.schedules && masterState.schedules.length > 0) setSchedules(masterState.schedules);
+                if (masterState.attendanceRecords) setAttendanceRecords(masterState.attendanceRecords);
+                setIsCloudConnected(true);
+                showToast(
+                  `Data diperbarui dari perangkat lain (${new Date(masterState.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})`
+                );
+              }
+            }
+          },
+          () => setIsCloudConnected(false)
+        )
+      );
+
       // Real-time listener for Exam Identity Config
       unsubs.push(
         subscribeToExamConfig(
@@ -376,17 +428,50 @@ export default function App() {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  // Unified Atomic Master State Sync Helper (Single Doc Write = Ultra-fast + Quota-safe)
+  const pushMasterStateToCloud = (partial?: {
+    config?: ExamConfig;
+    students?: Student[];
+    rooms?: ExamRoom[];
+    proctors?: Proctor[];
+    schedules?: ExamScheduleItem[];
+    attendanceRecords?: ProctorAttendanceRecord[];
+  }) => {
+    saveMasterStateToCloud({
+      config: partial?.config ?? config,
+      students: partial?.students ?? students,
+      rooms: partial?.rooms ?? rooms,
+      proctors: partial?.proctors ?? proctors,
+      schedules: partial?.schedules ?? schedules,
+      attendanceRecords: partial?.attendanceRecords ?? attendanceRecords,
+    }).catch((err) => {
+      console.warn('Auto master cloud sync note:', err);
+    });
+  };
+
   // --- Cloud Synchronization Actions ---
   const handleForceSyncAllToCloud = async () => {
     setIsSyncing(true);
     try {
-      await saveExamConfigToCloud(config);
-      await syncRoomsToCloud(rooms);
-      await syncStudentsToCloud(students);
-      await syncProctorsToCloud(proctors);
-      await syncSchedulesToCloud(schedules);
+      // 1. Atomic Master State Bundle (Guaranteed atomic cross-device sync)
+      await saveMasterStateToCloud({
+        config,
+        students,
+        rooms,
+        proctors,
+        schedules,
+        attendanceRecords,
+      });
+
+      // 2. Individual collections as secondary fallback
+      saveExamConfigToCloud(config).catch(() => {});
+      syncRoomsToCloud(rooms).catch(() => {});
+      syncStudentsToCloud(students).catch(() => {});
+      syncProctorsToCloud(proctors).catch(() => {});
+      syncSchedulesToCloud(schedules).catch(() => {});
+
       setIsCloudConnected(true);
-      showToast('Seluruh data berhasil disinkronkan ke Cloud Firestore.');
+      showToast('Seluruh data berhasil disinkronkan ke Cloud! Perangkat lain kini dapat melihat perubahan Anda.');
     } catch (err) {
       console.error('Failed to sync to cloud:', err);
       showToast('Gagal sinkronisasi: ' + (err instanceof Error ? err.message : String(err)));
@@ -394,6 +479,61 @@ export default function App() {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handlePullLatestFromCloud = async () => {
+    setIsSyncing(true);
+    try {
+      const masterState = await getMasterStateFromCloud();
+      if (masterState) {
+        if (masterState.config) setConfig(masterState.config);
+        if (masterState.rooms && masterState.rooms.length > 0) setRooms(masterState.rooms);
+        if (masterState.students && masterState.students.length > 0) setStudents(masterState.students);
+        if (masterState.proctors && masterState.proctors.length > 0) setProctors(masterState.proctors);
+        if (masterState.schedules && masterState.schedules.length > 0) setSchedules(masterState.schedules);
+        if (masterState.attendanceRecords) setAttendanceRecords(masterState.attendanceRecords);
+        setIsCloudConnected(true);
+        showToast('Berhasil menarik data terbaru dari Cloud!');
+      } else {
+        showToast('Belum ada data master tersimpan di Cloud.');
+      }
+    } catch (err) {
+      showToast('Gagal menarik data cloud: ' + (err instanceof Error ? err.message : String(err)));
+      throw err;
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  const handleImportFullState = (importedData: any) => {
+    if (!importedData || typeof importedData !== 'object') {
+      showToast('Format file cadangan tidak valid.');
+      return;
+    }
+    const nextConfig = importedData.config || config;
+    const nextRooms = Array.isArray(importedData.rooms) && importedData.rooms.length > 0 ? importedData.rooms : rooms;
+    const nextStudents = Array.isArray(importedData.students) && importedData.students.length > 0 ? importedData.students : students;
+    const nextProctors = Array.isArray(importedData.proctors) && importedData.proctors.length > 0 ? importedData.proctors : proctors;
+    const nextSchedules = Array.isArray(importedData.schedules) && importedData.schedules.length > 0 ? importedData.schedules : schedules;
+    const nextAttendance = Array.isArray(importedData.attendanceRecords) ? importedData.attendanceRecords : attendanceRecords;
+
+    setConfig(nextConfig);
+    setRooms(nextRooms);
+    setStudents(nextStudents);
+    setProctors(nextProctors);
+    setSchedules(nextSchedules);
+    setAttendanceRecords(nextAttendance);
+
+    pushMasterStateToCloud({
+      config: nextConfig,
+      students: nextStudents,
+      rooms: nextRooms,
+      proctors: nextProctors,
+      schedules: nextSchedules,
+      attendanceRecords: nextAttendance,
+    });
+
+    showToast(`Berhasil mengimpor data: ${nextStudents.length} peserta & ${nextRooms.length} ruangan diterapkan!`);
   };
 
   // --- Handlers ---
@@ -558,6 +698,7 @@ export default function App() {
     const m2 = config.major2Name || DEFAULT_MAJOR_2;
     const { updatedStudents, unassignedStudents } = distributeCrossClass(students, rooms, m1, m2);
     setStudents(updatedStudents);
+    pushMasterStateToCloud({ students: updatedStudents });
     syncStudentsToCloud(updatedStudents).catch((err) => console.warn('Cloud sync students note:', err));
     if (unassignedStudents.length > 0) {
       showToast(`Sistem Silang Kelipatan 5 selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
@@ -571,6 +712,7 @@ export default function App() {
     const m2 = config.major2Name || DEFAULT_MAJOR_2;
     const { updatedStudents, unassignedStudents } = distributeSequential(students, rooms, m1, m2);
     setStudents(updatedStudents);
+    pushMasterStateToCloud({ students: updatedStudents });
     syncStudentsToCloud(updatedStudents).catch((err) => console.warn('Cloud sync students note:', err));
     if (unassignedStudents.length > 0) {
       showToast(`Pembagian Berurutan selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
@@ -610,6 +752,7 @@ export default function App() {
       m2
     );
     setStudents(updatedStudents);
+    pushMasterStateToCloud({ students: updatedStudents, rooms: currentRooms });
     syncStudentsToCloud(updatedStudents).catch((err) => console.warn('Cloud sync students note:', err));
     if (unassignedStudents.length > 0) {
       showToast(`Plotting Silang Antar-Tingkat selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
@@ -631,6 +774,7 @@ export default function App() {
       : distributeCrossClass(students, updatedRooms, m1, m2);
 
     setStudents(updatedStudents);
+    pushMasterStateToCloud({ students: updatedStudents, rooms: updatedRooms });
     syncStudentsToCloud(updatedStudents).catch(() => {});
     if (unassignedStudents.length > 0) {
       showToast(`Aturan Program Studi diterapkan: Ruang 01-05 (${m1}) & Ruang 06+ (${m2}). ${unassignedStudents.length} siswa perlu kapasitas ruang tambahan.`);
@@ -658,6 +802,7 @@ export default function App() {
       syncRoomsToCloud(updatedRooms).catch(() => {});
       const { updatedStudents } = distributeCrossLevelDoubleDesk(students, updatedRooms, 'photo_order', m1, m2);
       setStudents(updatedStudents);
+      pushMasterStateToCloud({ students: updatedStudents, rooms: updatedRooms });
       syncStudentsToCloud(updatedStudents).catch(() => {});
       showToast(`Kapasitas diset 40 siswa (12 Ruang) dengan Pemisahan: Ruang 01-05 (${m1}) & Ruang 06+ (${m2})!`);
     } else {
@@ -678,6 +823,7 @@ export default function App() {
       syncRoomsToCloud(updatedRooms).catch(() => {});
       const { updatedStudents } = distributeCrossClass(students, updatedRooms, m1, m2);
       setStudents(updatedStudents);
+      pushMasterStateToCloud({ students: updatedStudents, rooms: updatedRooms });
       syncStudentsToCloud(updatedStudents).catch(() => {});
       showToast(`Kapasitas diset 20 siswa (24 Ruang) dengan Pemisahan: Ruang 01-05 (${m1}) & Ruang 06+ (${m2})!`);
     }
@@ -691,6 +837,7 @@ export default function App() {
       seatNumber: undefined,
     }));
     setStudents(cleared);
+    pushMasterStateToCloud({ students: cleared });
     syncStudentsToCloud(cleared).catch(() => {});
     showToast('Seluruh penempatan ruang dan nomor meja telah dikosongkan.');
   };
@@ -722,6 +869,7 @@ export default function App() {
         return s;
       });
       syncStudentsToCloud(swapped).catch(() => {});
+      pushMasterStateToCloud({ students: swapped });
       return swapped;
     });
 
@@ -861,6 +1009,7 @@ export default function App() {
       }
 
       syncStudentsToCloud(nextStudents).catch(() => {});
+      pushMasterStateToCloud({ students: nextStudents });
       return nextStudents;
     });
 
@@ -876,6 +1025,7 @@ export default function App() {
         s.id === studentId ? { ...s, roomId: undefined, roomName: undefined, seatNumber: undefined } : s
       );
       syncStudentsToCloud(next).catch(() => {});
+      pushMasterStateToCloud({ students: next });
       return next;
     });
     showToast('Peserta berhasil dikeluarkan dari ruang ujian.');
@@ -904,6 +1054,7 @@ export default function App() {
       });
 
       syncStudentsToCloud(next).catch(() => {});
+      pushMasterStateToCloud({ students: next });
       return next;
     });
     showToast('Nomor meja siswa di ruang ini berhasil dirapikan berurutan (1..N).');
@@ -1170,6 +1321,8 @@ export default function App() {
         isConnected={isCloudConnected}
         isSyncing={isSyncing}
         onForceSyncAllToCloud={handleForceSyncAllToCloud}
+        onPullLatestFromCloud={handlePullLatestFromCloud}
+        onImportFullState={handleImportFullState}
       />
 
       {/* Variation 3 App Footer */}
