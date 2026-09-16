@@ -32,6 +32,8 @@ interface CloudSyncModalProps {
   attendanceRecords: ProctorAttendanceRecord[];
   isConnected: boolean;
   isSyncing: boolean;
+  isQuotaExhausted?: boolean;
+  onResetQuotaCheck?: () => void;
   onForceSyncAllToCloud: () => Promise<void>;
   onPullLatestFromCloud?: () => Promise<void>;
   onImportFullState?: (data: any) => void;
@@ -48,6 +50,8 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   attendanceRecords,
   isConnected,
   isSyncing,
+  isQuotaExhausted = false,
+  onResetQuotaCheck,
   onForceSyncAllToCloud,
   onPullLatestFromCloud,
   onImportFullState,
@@ -77,6 +81,10 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
   };
 
   const handleUploadAll = async () => {
+    if (isQuotaExhausted) {
+      setUploadStatus('Batas kuota tulis harian Cloud sedang tercapai. Gunakan tombol "Unduh Cadangan (.json)" di bawah untuk transfer instan.');
+      return;
+    }
     try {
       setUploadStatus('Mengupload data ke Cloud Database...');
       await onForceSyncAllToCloud();
@@ -214,6 +222,34 @@ export const CloudSyncModal: React.FC<CloudSyncModalProps> = ({
 
         {/* Body */}
         <div className="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          {/* Quota Exhaustion Notice */}
+          {isQuotaExhausted && (
+            <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3">
+              <div className="p-1.5 rounded-lg bg-rose-600 text-white shrink-0 mt-0.5">
+                <AlertCircle className="w-4 h-4" />
+              </div>
+              <div className="text-xs text-rose-900 leading-relaxed flex-1">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <p className="font-bold">
+                    Batas Kuota Tulis Harian Cloud (Firestore Free Tier) Tercapai
+                  </p>
+                  {onResetQuotaCheck && (
+                    <button
+                      type="button"
+                      onClick={onResetQuotaCheck}
+                      className="text-[11px] font-bold text-rose-700 underline hover:text-rose-900 cursor-pointer"
+                    >
+                      Cek Ulang Kuota
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-rose-800">
+                  Data pada perangkat ini <strong>tersimpan 100% aman secara lokal</strong>. Firebase membatasi kuota tulis harian gratis (20.000 writes/hari). Untuk mentransfer data ke perangkat lain saat ini, silakan gunakan fitur <strong>Unduh Cadangan (.json)</strong> atau <strong>Salin Kode Transfer</strong> di bawah.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Diagnostic & Solution Guide Box */}
           <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200 flex items-start gap-3">
             <div className="p-1.5 rounded-lg bg-amber-600 text-white shrink-0 mt-0.5">

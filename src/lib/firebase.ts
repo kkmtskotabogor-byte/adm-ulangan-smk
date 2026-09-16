@@ -79,14 +79,38 @@ export interface FirestoreErrorInfo {
   };
 }
 
+const QUOTA_EXHAUSTED_KEY = 'SIM_CLOUD_QUOTA_EXHAUSTED_TIME';
+
 let isCloudQuotaExhausted = false;
 
 export function getIsCloudQuotaExhausted(): boolean {
-  return isCloudQuotaExhausted;
+  if (isCloudQuotaExhausted) return true;
+  if (typeof window !== 'undefined') {
+    const recordedStr = localStorage.getItem(QUOTA_EXHAUSTED_KEY);
+    if (recordedStr) {
+      const recordedTime = parseInt(recordedStr, 10);
+      // Firebase daily write limit resets periodically (within 24 hours)
+      // Check if within 4 hours
+      if (Date.now() - recordedTime < 4 * 60 * 60 * 1000) {
+        isCloudQuotaExhausted = true;
+        return true;
+      } else {
+        localStorage.removeItem(QUOTA_EXHAUSTED_KEY);
+      }
+    }
+  }
+  return false;
 }
 
 export function setIsCloudQuotaExhausted(value: boolean): void {
   isCloudQuotaExhausted = value;
+  if (typeof window !== 'undefined') {
+    if (value) {
+      localStorage.setItem(QUOTA_EXHAUSTED_KEY, Date.now().toString());
+    } else {
+      localStorage.removeItem(QUOTA_EXHAUSTED_KEY);
+    }
+  }
 }
 
 export function handleFirestoreError(
@@ -95,8 +119,12 @@ export function handleFirestoreError(
   path: string | null
 ): void {
   const errMsg = error instanceof Error ? error.message : String(error);
-  if (errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded')) {
-    isCloudQuotaExhausted = true;
+  if (
+    errMsg.includes('resource-exhausted') ||
+    errMsg.includes('Quota limit exceeded') ||
+    errMsg.includes('Quota exceeded')
+  ) {
+    setIsCloudQuotaExhausted(true);
     console.warn('Firestore daily write quota reached for free tier. Switching safely to local storage mode.');
     return;
   }
@@ -128,14 +156,18 @@ export function handleFirestoreError(
 
 // Connection Validation on Boot
 export async function testConnection(): Promise<boolean> {
-  if (isCloudQuotaExhausted) return false;
+  if (getIsCloudQuotaExhausted()) return false;
   try {
     await getDocFromServer(doc(db, 'exam_config', 'current'));
     return true;
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    if (errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded')) {
-      isCloudQuotaExhausted = true;
+    if (
+      errMsg.includes('resource-exhausted') ||
+      errMsg.includes('Quota limit exceeded') ||
+      errMsg.includes('Quota exceeded')
+    ) {
+      setIsCloudQuotaExhausted(true);
       return false;
     }
     if (error instanceof Error && error.message.includes('the client is offline')) {
@@ -175,6 +207,7 @@ export function subscribeToExamConfig(
 }
 
 export async function saveExamConfigToCloud(config: ExamConfig): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = 'exam_config/current';
   try {
     const docRef = doc(db, 'exam_config', 'current');
@@ -187,7 +220,7 @@ export async function saveExamConfigToCloud(config: ExamConfig): Promise<void> {
     console.info('Cloud exam_config saved successfully.');
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    if (!getIsCloudQuotaExhausted()) throw error;
   }
 }
 
@@ -214,6 +247,7 @@ export function subscribeToRooms(
 }
 
 export async function saveRoomToCloud(room: ExamRoom): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = `rooms/${room.id}`;
   try {
     const cleanData = cleanForFirestore({
@@ -223,11 +257,12 @@ export async function saveRoomToCloud(room: ExamRoom): Promise<void> {
     await setDoc(doc(db, 'rooms', room.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    if (!getIsCloudQuotaExhausted()) throw error;
   }
 }
 
 export async function deleteRoomFromCloud(roomId: string): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = `rooms/${roomId}`;
   try {
     await deleteDoc(doc(db, 'rooms', roomId));
@@ -237,7 +272,7 @@ export async function deleteRoomFromCloud(roomId: string): Promise<void> {
 }
 
 export async function syncRoomsToCloud(rooms: ExamRoom[]): Promise<void> {
-  if (isCloudQuotaExhausted) return;
+  if (getIsCloudQuotaExhausted()) return;
   try {
     // Write in batches of up to 400
     const batchSize = 400;
@@ -281,7 +316,7 @@ export function subscribeToStudents(
 }
 
 export async function saveStudentToCloud(student: Student): Promise<void> {
-  if (isCloudQuotaExhausted) return;
+  if (getIsCloudQuotaExhausted()) return;
   const path = `students/${student.id}`;
   try {
     const cleanData = cleanForFirestore({
@@ -295,7 +330,7 @@ export async function saveStudentToCloud(student: Student): Promise<void> {
 }
 
 export async function deleteStudentFromCloud(studentId: string): Promise<void> {
-  if (isCloudQuotaExhausted) return;
+  if (getIsCloudQuotaExhausted()) return;
   const path = `students/${studentId}`;
   try {
     await deleteDoc(doc(db, 'students', studentId));
@@ -305,7 +340,7 @@ export async function deleteStudentFromCloud(studentId: string): Promise<void> {
 }
 
 export async function deleteStudentsBatchFromCloud(studentIds: string[]): Promise<void> {
-  if (!db || studentIds.length === 0 || isCloudQuotaExhausted) return;
+  if (!db || studentIds.length === 0 || getIsCloudQuotaExhausted()) return;
   try {
     const batchSize = 400;
     for (let i = 0; i < studentIds.length; i += batchSize) {
@@ -322,7 +357,7 @@ export async function deleteStudentsBatchFromCloud(studentIds: string[]): Promis
 }
 
 export async function clearAllStudentsFromCloud(): Promise<void> {
-  if (!db || isCloudQuotaExhausted) return;
+  if (!db || getIsCloudQuotaExhausted()) return;
   try {
     const snap = await getDocs(collection(db, 'students'));
     const batchSize = 400;
@@ -340,7 +375,7 @@ export async function clearAllStudentsFromCloud(): Promise<void> {
 
 
 export async function syncStudentsToCloud(students: Student[]): Promise<void> {
-  if (isCloudQuotaExhausted) return;
+  if (getIsCloudQuotaExhausted()) return;
   try {
     const batchSize = 400;
     for (let i = 0; i < students.length; i += batchSize) {
@@ -384,6 +419,7 @@ export function subscribeToProctors(
 }
 
 export async function saveProctorToCloud(proctor: Proctor): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = `proctors/${proctor.id}`;
   try {
     const cleanData = cleanForFirestore({
@@ -393,11 +429,12 @@ export async function saveProctorToCloud(proctor: Proctor): Promise<void> {
     await setDoc(doc(db, 'proctors', proctor.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    if (!getIsCloudQuotaExhausted()) throw error;
   }
 }
 
 export async function deleteProctorFromCloud(proctorId: string): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = `proctors/${proctorId}`;
   try {
     await deleteDoc(doc(db, 'proctors', proctorId));
@@ -407,6 +444,7 @@ export async function deleteProctorFromCloud(proctorId: string): Promise<void> {
 }
 
 export async function syncProctorsToCloud(proctors: Proctor[]): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   try {
     const batchSize = 400;
     for (let i = 0; i < proctors.length; i += batchSize) {
@@ -451,6 +489,7 @@ export function subscribeToSchedules(
 }
 
 export async function clearAllSchedulesFromCloud(): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   try {
     const snap = await getDocs(collection(db, 'schedules'));
     const batchSize = 400;
@@ -467,6 +506,7 @@ export async function clearAllSchedulesFromCloud(): Promise<void> {
 }
 
 export async function syncSchedulesToCloud(schedules: ExamScheduleItem[]): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   try {
     const snap = await getDocs(collection(db, 'schedules'));
     const newIds = new Set(schedules.map((s) => s.id));
@@ -525,6 +565,7 @@ export function subscribeToAttendanceRecords(
 export async function saveAttendanceRecordToCloud(
   record: ProctorAttendanceRecord
 ): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = `attendance_records/${record.id}`;
   try {
     const cleanData = cleanForFirestore({
@@ -534,11 +575,12 @@ export async function saveAttendanceRecordToCloud(
     await setDoc(doc(db, 'attendance_records', record.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    if (!getIsCloudQuotaExhausted()) throw error;
   }
 }
 
 export async function deleteAttendanceRecordFromCloud(recordId: string): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = `attendance_records/${recordId}`;
   try {
     await deleteDoc(doc(db, 'attendance_records', recordId));
@@ -573,6 +615,7 @@ export function subscribeToProctorMatrix(
 export async function saveProctorMatrixToCloud(
   allocations: Record<string, { proctorId?: string; proctorName: string; nip?: string }>
 ): Promise<void> {
+  if (getIsCloudQuotaExhausted()) return;
   const path = 'proctor_matrix/current';
   try {
     const cleanData = cleanForFirestore({
@@ -583,12 +626,13 @@ export async function saveProctorMatrixToCloud(
     await setDoc(doc(db, 'proctor_matrix', 'current'), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    if (!getIsCloudQuotaExhausted()) throw error;
   }
 }
 
 // Master check if Cloud Database is empty
 export async function isCloudDatabaseInitialized(): Promise<boolean> {
+  if (getIsCloudQuotaExhausted()) return true;
   try {
     const configSnap = await getDocFromServer(doc(db, 'exam_config', 'current'));
     if (configSnap.exists()) {
@@ -643,6 +687,10 @@ export function subscribeToMasterState(
 export async function saveMasterStateToCloud(
   state: Omit<MasterExamState, 'id' | 'updatedAt' | 'deviceId'>
 ): Promise<void> {
+  if (getIsCloudQuotaExhausted()) {
+    console.warn('Skipping cloud master write because daily write quota is reached.');
+    return;
+  }
   const path = 'exam_state/master';
   try {
     const cleanData = cleanForFirestore({
@@ -657,14 +705,17 @@ export async function saveMasterStateToCloud(
       updatedAt: new Date().toISOString(),
     });
     await setDoc(doc(db, 'exam_state', 'master'), cleanData);
-    isCloudQuotaExhausted = false; // Successfully wrote, reset flag
+    setIsCloudQuotaExhausted(false); // Successfully wrote, reset flag
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
+    if (!getIsCloudQuotaExhausted()) throw error;
   }
 }
 
 export async function getMasterStateFromCloud(): Promise<MasterExamState | null> {
+  if (getIsCloudQuotaExhausted()) {
+    return null;
+  }
   try {
     const snap = await getDocFromServer(doc(db, 'exam_state', 'master'));
     if (snap.exists()) {

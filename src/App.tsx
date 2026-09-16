@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ActiveTab, AuthUser, ExamConfig, ExamRoom, ExamScheduleItem, Proctor, Student } from './types';
 import { initialConfig, initialProctors, initialRooms, initialSchedule, initialStudents } from './data/initialData';
 import { 
@@ -50,6 +50,9 @@ import {
   saveMasterStateToCloud,
   getMasterStateFromCloud,
   getLocalDeviceId,
+  getIsCloudQuotaExhausted,
+  setIsCloudQuotaExhausted,
+  testConnection,
 } from './lib/firebase';
 import { ProctorAttendanceRecord } from './types';
 
@@ -221,24 +224,21 @@ export default function App() {
           if (masterState.attendanceRecords) setAttendanceRecords(masterState.attendanceRecords);
           setIsCloudConnected(true);
         } else {
-          // Cloud database empty, initialize master state and individual collections
-          isCloudDatabaseInitialized().then((isInitialized) => {
-            if (!isInitialized) {
-              saveMasterStateToCloud({
-                config,
-                students,
-                rooms,
-                proctors,
-                schedules,
-                attendanceRecords,
-              }).catch(() => {});
-              saveExamConfigToCloud(config).catch(() => {});
-              syncRoomsToCloud(rooms).catch(() => {});
-              syncStudentsToCloud(students).catch(() => {});
-              syncProctorsToCloud(proctors).catch(() => {});
-              syncSchedulesToCloud(schedules).catch(() => {});
-            }
-          });
+          // Cloud database empty: only write master state if quota is not reached
+          if (!getIsCloudQuotaExhausted()) {
+            isCloudDatabaseInitialized().then((isInitialized) => {
+              if (!isInitialized) {
+                saveMasterStateToCloud({
+                  config,
+                  students,
+                  rooms,
+                  proctors,
+                  schedules,
+                  attendanceRecords,
+                }).catch(() => {});
+              }
+            }).catch(() => {});
+          }
         }
       })
       .catch((err) => {
@@ -428,6 +428,8 @@ export default function App() {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  const masterSyncTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Unified Atomic Master State Sync Helper (Single Doc Write = Ultra-fast + Quota-safe)
   const pushMasterStateToCloud = (partial?: {
     config?: ExamConfig;
@@ -437,23 +439,34 @@ export default function App() {
     schedules?: ExamScheduleItem[];
     attendanceRecords?: ProctorAttendanceRecord[];
   }) => {
-    saveMasterStateToCloud({
-      config: partial?.config ?? config,
-      students: partial?.students ?? students,
-      rooms: partial?.rooms ?? rooms,
-      proctors: partial?.proctors ?? proctors,
-      schedules: partial?.schedules ?? schedules,
-      attendanceRecords: partial?.attendanceRecords ?? attendanceRecords,
-    }).catch((err) => {
-      console.warn('Auto master cloud sync note:', err);
-    });
+    if (getIsCloudQuotaExhausted()) return;
+    if (masterSyncTimerRef.current) {
+      clearTimeout(masterSyncTimerRef.current);
+    }
+    masterSyncTimerRef.current = setTimeout(() => {
+      if (getIsCloudQuotaExhausted()) return;
+      saveMasterStateToCloud({
+        config: partial?.config ?? config,
+        students: partial?.students ?? students,
+        rooms: partial?.rooms ?? rooms,
+        proctors: partial?.proctors ?? proctors,
+        schedules: partial?.schedules ?? schedules,
+        attendanceRecords: partial?.attendanceRecords ?? attendanceRecords,
+      }).catch((err) => {
+        console.warn('Auto master cloud sync note:', err);
+      });
+    }, 600);
   };
 
   // --- Cloud Synchronization Actions ---
   const handleForceSyncAllToCloud = async () => {
     setIsSyncing(true);
     try {
-      // 1. Atomic Master State Bundle (Guaranteed atomic cross-device sync)
+      if (getIsCloudQuotaExhausted()) {
+        showToast('Batas kuota harian Cloud (Firebase Free Tier) sedang tercapai. Data tersimpan aman di perangkat.');
+        return;
+      }
+      // 1. Atomic Master State Bundle (Guaranteed atomic cross-device sync in 1 single write)
       await saveMasterStateToCloud({
         config,
         students,
@@ -463,18 +476,16 @@ export default function App() {
         attendanceRecords,
       });
 
-      // 2. Individual collections as secondary fallback
-      saveExamConfigToCloud(config).catch(() => {});
-      syncRoomsToCloud(rooms).catch(() => {});
-      syncStudentsToCloud(students).catch(() => {});
-      syncProctorsToCloud(proctors).catch(() => {});
-      syncSchedulesToCloud(schedules).catch(() => {});
-
       setIsCloudConnected(true);
       showToast('Seluruh data berhasil disinkronkan ke Cloud! Perangkat lain kini dapat melihat perubahan Anda.');
     } catch (err) {
       console.error('Failed to sync to cloud:', err);
-      showToast('Gagal sinkronisasi: ' + (err instanceof Error ? err.message : String(err)));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('resource-exhausted') || msg.includes('Quota limit exceeded') || msg.includes('Quota exceeded')) {
+        showToast('Batas kuota Cloud harian tercapai. Silakan gunakan tombol Unduh Cadangan (.json) untuk transfer instan.');
+      } else {
+        showToast('Gagal sinkronisasi: ' + msg);
+      }
       throw err;
     } finally {
       setIsSyncing(false);
@@ -699,7 +710,6 @@ export default function App() {
     const { updatedStudents, unassignedStudents } = distributeCrossClass(students, rooms, m1, m2);
     setStudents(updatedStudents);
     pushMasterStateToCloud({ students: updatedStudents });
-    syncStudentsToCloud(updatedStudents).catch((err) => console.warn('Cloud sync students note:', err));
     if (unassignedStudents.length > 0) {
       showToast(`Sistem Silang Kelipatan 5 selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
     } else {
@@ -713,7 +723,6 @@ export default function App() {
     const { updatedStudents, unassignedStudents } = distributeSequential(students, rooms, m1, m2);
     setStudents(updatedStudents);
     pushMasterStateToCloud({ students: updatedStudents });
-    syncStudentsToCloud(updatedStudents).catch((err) => console.warn('Cloud sync students note:', err));
     if (unassignedStudents.length > 0) {
       showToast(`Pembagian Berurutan selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
     } else {
@@ -741,7 +750,6 @@ export default function App() {
         };
       });
       setRooms(currentRooms);
-      syncRoomsToCloud(currentRooms).catch(() => {});
     }
 
     const { updatedStudents, unassignedStudents } = distributeCrossLevelDoubleDesk(
@@ -753,7 +761,6 @@ export default function App() {
     );
     setStudents(updatedStudents);
     pushMasterStateToCloud({ students: updatedStudents, rooms: currentRooms });
-    syncStudentsToCloud(updatedStudents).catch((err) => console.warn('Cloud sync students note:', err));
     if (unassignedStudents.length > 0) {
       showToast(`Plotting Silang Antar-Tingkat selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
     } else {
@@ -766,7 +773,6 @@ export default function App() {
     const m2 = config.major2Name || DEFAULT_MAJOR_2;
     const updatedRooms = applySmkYak1RoomRule(rooms, m1, m2);
     setRooms(updatedRooms);
-    syncRoomsToCloud(updatedRooms).catch((err) => console.warn('Cloud rooms sync note:', err));
 
     const isDouble = updatedRooms.length > 0 && (updatedRooms[0].capacity || 0) >= 40;
     const { updatedStudents, unassignedStudents } = isDouble
@@ -775,7 +781,6 @@ export default function App() {
 
     setStudents(updatedStudents);
     pushMasterStateToCloud({ students: updatedStudents, rooms: updatedRooms });
-    syncStudentsToCloud(updatedStudents).catch(() => {});
     if (unassignedStudents.length > 0) {
       showToast(`Aturan Program Studi diterapkan: Ruang 01-05 (${m1}) & Ruang 06+ (${m2}). ${unassignedStudents.length} siswa perlu kapasitas ruang tambahan.`);
     } else {
@@ -799,11 +804,9 @@ export default function App() {
         };
       });
       setRooms(updatedRooms);
-      syncRoomsToCloud(updatedRooms).catch(() => {});
       const { updatedStudents } = distributeCrossLevelDoubleDesk(students, updatedRooms, 'photo_order', m1, m2);
       setStudents(updatedStudents);
       pushMasterStateToCloud({ students: updatedStudents, rooms: updatedRooms });
-      syncStudentsToCloud(updatedStudents).catch(() => {});
       showToast(`Kapasitas diset 40 siswa (12 Ruang) dengan Pemisahan: Ruang 01-05 (${m1}) & Ruang 06+ (${m2})!`);
     } else {
       const updatedRooms: ExamRoom[] = Array.from({ length: 24 }, (_, idx) => {
@@ -820,11 +823,9 @@ export default function App() {
         };
       });
       setRooms(updatedRooms);
-      syncRoomsToCloud(updatedRooms).catch(() => {});
       const { updatedStudents } = distributeCrossClass(students, updatedRooms, m1, m2);
       setStudents(updatedStudents);
       pushMasterStateToCloud({ students: updatedStudents, rooms: updatedRooms });
-      syncStudentsToCloud(updatedStudents).catch(() => {});
       showToast(`Kapasitas diset 20 siswa (24 Ruang) dengan Pemisahan: Ruang 01-05 (${m1}) & Ruang 06+ (${m2})!`);
     }
   };
@@ -838,7 +839,6 @@ export default function App() {
     }));
     setStudents(cleared);
     pushMasterStateToCloud({ students: cleared });
-    syncStudentsToCloud(cleared).catch(() => {});
     showToast('Seluruh penempatan ruang dan nomor meja telah dikosongkan.');
   };
 
@@ -868,7 +868,6 @@ export default function App() {
         }
         return s;
       });
-      syncStudentsToCloud(swapped).catch(() => {});
       pushMasterStateToCloud({ students: swapped });
       return swapped;
     });
@@ -1008,7 +1007,6 @@ export default function App() {
         });
       }
 
-      syncStudentsToCloud(nextStudents).catch(() => {});
       pushMasterStateToCloud({ students: nextStudents });
       return nextStudents;
     });
@@ -1024,7 +1022,6 @@ export default function App() {
       const next = prev.map((s) =>
         s.id === studentId ? { ...s, roomId: undefined, roomName: undefined, seatNumber: undefined } : s
       );
-      syncStudentsToCloud(next).catch(() => {});
       pushMasterStateToCloud({ students: next });
       return next;
     });
@@ -1053,7 +1050,6 @@ export default function App() {
         return s;
       });
 
-      syncStudentsToCloud(next).catch(() => {});
       pushMasterStateToCloud({ students: next });
       return next;
     });
@@ -1320,6 +1316,18 @@ export default function App() {
         attendanceRecords={attendanceRecords}
         isConnected={isCloudConnected}
         isSyncing={isSyncing}
+        isQuotaExhausted={getIsCloudQuotaExhausted()}
+        onResetQuotaCheck={() => {
+          setIsCloudQuotaExhausted(false);
+          testConnection().then((connected) => {
+            setIsCloudConnected(connected);
+            if (connected) {
+              showToast('Koneksi Cloud Firestore berhasil terhubung kembali!');
+            } else {
+              showToast('Kuota Cloud masih penuh atau koneksi belum tersedia.');
+            }
+          });
+        }}
         onForceSyncAllToCloud={handleForceSyncAllToCloud}
         onPullLatestFromCloud={handlePullLatestFromCloud}
         onImportFullState={handleImportFullState}
