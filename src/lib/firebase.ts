@@ -78,14 +78,35 @@ export interface FirestoreErrorInfo {
   };
 }
 
+let isCloudQuotaExhausted = false;
+
+export function getIsCloudQuotaExhausted(): boolean {
+  return isCloudQuotaExhausted;
+}
+
+export function setIsCloudQuotaExhausted(value: boolean): void {
+  isCloudQuotaExhausted = value;
+}
+
 export function handleFirestoreError(
   error: unknown,
   operationType: OperationType,
   path: string | null
 ): void {
+  const errMsg = error instanceof Error ? error.message : String(error);
+  if (errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded')) {
+    isCloudQuotaExhausted = true;
+    console.warn('Firestore daily write quota reached for free tier. Switching safely to local storage mode.');
+    return;
+  }
+  if (errMsg.includes('unavailable') || errMsg.includes('the client is offline')) {
+    console.warn('Firestore backend currently offline/unavailable. Operating safely with local storage.');
+    return;
+  }
+
   const currentUser = auth?.currentUser;
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMsg,
     authInfo: {
       userId: currentUser?.uid,
       email: currentUser?.email,
@@ -106,14 +127,20 @@ export function handleFirestoreError(
 
 // Connection Validation on Boot
 export async function testConnection(): Promise<boolean> {
+  if (isCloudQuotaExhausted) return false;
   try {
     await getDocFromServer(doc(db, 'exam_config', 'current'));
     return true;
   } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error);
+    if (errMsg.includes('resource-exhausted') || errMsg.includes('Quota limit exceeded')) {
+      isCloudQuotaExhausted = true;
+      return false;
+    }
     if (error instanceof Error && error.message.includes('the client is offline')) {
       console.warn('Firebase client is currently offline or unreachable.');
     } else {
-      console.info('Firebase connection tested:', error instanceof Error ? error.message : String(error));
+      console.info('Firebase connection tested:', errMsg);
     }
     return false;
   }
@@ -209,6 +236,7 @@ export async function deleteRoomFromCloud(roomId: string): Promise<void> {
 }
 
 export async function syncRoomsToCloud(rooms: ExamRoom[]): Promise<void> {
+  if (isCloudQuotaExhausted) return;
   try {
     // Write in batches of up to 400
     const batchSize = 400;
@@ -252,6 +280,7 @@ export function subscribeToStudents(
 }
 
 export async function saveStudentToCloud(student: Student): Promise<void> {
+  if (isCloudQuotaExhausted) return;
   const path = `students/${student.id}`;
   try {
     const cleanData = cleanForFirestore({
@@ -261,11 +290,11 @@ export async function saveStudentToCloud(student: Student): Promise<void> {
     await setDoc(doc(db, 'students', student.id), cleanData);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
-    throw error;
   }
 }
 
 export async function deleteStudentFromCloud(studentId: string): Promise<void> {
+  if (isCloudQuotaExhausted) return;
   const path = `students/${studentId}`;
   try {
     await deleteDoc(doc(db, 'students', studentId));
@@ -275,7 +304,7 @@ export async function deleteStudentFromCloud(studentId: string): Promise<void> {
 }
 
 export async function deleteStudentsBatchFromCloud(studentIds: string[]): Promise<void> {
-  if (!db || studentIds.length === 0) return;
+  if (!db || studentIds.length === 0 || isCloudQuotaExhausted) return;
   try {
     const batchSize = 400;
     for (let i = 0; i < studentIds.length; i += batchSize) {
@@ -292,7 +321,7 @@ export async function deleteStudentsBatchFromCloud(studentIds: string[]): Promis
 }
 
 export async function clearAllStudentsFromCloud(): Promise<void> {
-  if (!db) return;
+  if (!db || isCloudQuotaExhausted) return;
   try {
     const snap = await getDocs(collection(db, 'students'));
     const batchSize = 400;
@@ -310,6 +339,7 @@ export async function clearAllStudentsFromCloud(): Promise<void> {
 
 
 export async function syncStudentsToCloud(students: Student[]): Promise<void> {
+  if (isCloudQuotaExhausted) return;
   try {
     const batchSize = 400;
     for (let i = 0; i < students.length; i += batchSize) {

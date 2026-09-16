@@ -18,7 +18,7 @@ import {
   BookOpen,
   ArrowLeftRight
 } from 'lucide-react';
-import { getRoomMajorCategory, getMajorCategory } from '../utils/distribution';
+import { getRoomMajorCategory, getMajorCategory, extractTingkat } from '../utils/distribution';
 
 interface RoomsViewProps {
   rooms: ExamRoom[];
@@ -183,11 +183,11 @@ export const RoomsView: React.FC<RoomsViewProps> = ({
 
           <button
             onClick={onDistributeCross}
-            title="Sistem silang per program studi (meja ganjil-genap selang-seling kelas)"
+            title="Sistem silang per tingkat diutamakan kelipatan 5, sisa di ruangan terakhir setiap program studi"
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white hover:bg-slate-50 rounded-lg border border-slate-200 transition-colors cursor-pointer"
           >
-            <Shuffle className="w-3.5 h-3.5 text-slate-500" />
-            <span>Silang Kelas (20)</span>
+            <Shuffle className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Silang Kelipatan 5</span>
           </button>
 
           {onDistributeCrossLevel && (
@@ -238,13 +238,13 @@ export const RoomsView: React.FC<RoomsViewProps> = ({
           </div>
           <div>
             <div className="font-bold text-indigo-950 flex items-center gap-2">
-              <span>Aturan Penempatan Ruang Berdasarkan Program Studi</span>
+              <span>Aturan Penempatan Ruang & Komposisi Tingkat (Kelipatan 5)</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-800 font-semibold">Aktif</span>
             </div>
             <div className="text-[11px] text-indigo-700 mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span>🔵 <strong>Ruang 01 – 05:</strong> {major1Title}</span>
+              <span>🔵 <strong>Ruang 01 – 05:</strong> {major1Title} (R.01-04 Kelipatan 5, R.05 Ruang Akhir/Sisa)</span>
               <span className="text-indigo-300">•</span>
-              <span>🟢 <strong>Ruang 06 – seterusnya:</strong> {major2Title}</span>
+              <span>🟢 <strong>Ruang 06 – seterusnya:</strong> {major2Title} (R.06-09 Kelipatan 5, R.10 Ruang Akhir/Sisa)</span>
             </div>
           </div>
         </div>
@@ -366,11 +366,27 @@ export const RoomsView: React.FC<RoomsViewProps> = ({
             return acc;
           }, {} as Record<string, number>);
 
+          // Calculate tingkat breakdown inside this room
+          const tingkatCount: Record<string, number> = {};
+          roomStudents.forEach((s) => {
+            const t = extractTingkat(s.className);
+            tingkatCount[t] = (tingkatCount[t] || 0) + 1;
+          });
+          const isAllMultiplesOfFive =
+            Object.values(tingkatCount).length > 0 &&
+            Object.values(tingkatCount).every((c) => c % 5 === 0);
+
           const roomIdx = rooms.indexOf(room);
           const cat = getRoomCat(room, roomIdx);
           const isR1 = cat === 'MAJOR_1';
           const isR2 = cat === 'MAJOR_2';
           const displayMajor = room.major || (isR1 ? `${major1Title} (Ruang 01 - 05)` : `${major2Title} (Ruang 06+)`);
+
+          const major1Rooms = rooms.filter((r, idx) => getRoomCat(r, idx) === 'MAJOR_1');
+          const major2Rooms = rooms.filter((r, idx) => getRoomCat(r, idx) === 'MAJOR_2');
+          const isLastRoomOfMajor =
+            room.id === major1Rooms[major1Rooms.length - 1]?.id ||
+            room.id === major2Rooms[major2Rooms.length - 1]?.id;
 
           return (
             <div
@@ -450,16 +466,43 @@ export const RoomsView: React.FC<RoomsViewProps> = ({
                 {/* Composition tags */}
                 {assignedCount > 0 && (
                   <div className="pt-2 border-t border-slate-100">
-                    <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">
-                      Komposisi Peserta di Ruang:
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                        Komposisi Tingkat:
+                      </span>
+                      {isLastRoomOfMajor ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                          Ruang Akhir (Sisa Prodi)
+                        </span>
+                      ) : isAllMultiplesOfFive ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          ✓ Kelipatan 5
+                        </span>
+                      ) : null}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
+
+                    {/* Tingkat badges with counts */}
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {Object.entries(tingkatCount)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .map(([t, count]) => (
+                          <span
+                            key={t}
+                            className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200"
+                          >
+                            Tingkat {t}: <strong className="text-indigo-950 font-black">{count}</strong>
+                          </span>
+                        ))}
+                    </div>
+
+                    {/* Class breakdown */}
+                    <div className="flex flex-wrap gap-1">
                       {Object.entries(classCount).map(([className, count]) => (
                         <span
                           key={className}
-                          className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-50 text-slate-700 border border-slate-200"
+                          className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-50 text-slate-600 border border-slate-200"
                         >
-                          {className}: <strong className="text-slate-900 font-semibold">{count}</strong>
+                          {className}: <strong className="text-slate-800 font-semibold">{count}</strong>
                         </span>
                       ))}
                     </div>

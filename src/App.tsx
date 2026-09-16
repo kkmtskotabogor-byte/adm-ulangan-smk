@@ -7,6 +7,7 @@ import {
   generateExamNumbers, 
   distributeCrossLevelDoubleDesk,
   applySmkYak1RoomRule,
+  extractTingkat,
   DEFAULT_MAJOR_1,
   DEFAULT_MAJOR_2
 } from './utils/distribution';
@@ -102,9 +103,44 @@ export default function App() {
   const [students, setStudents] = useState<Student[]>(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.STUDENTS);
     if (saved) {
-      return JSON.parse(saved);
+      try {
+        const parsed: Student[] = JSON.parse(saved);
+        // Verify if all rooms have all grade levels (semua tingkat) and follow the multiples-of-5 rule.
+        // If existing saved data has single-tingkat rooms or non-multiple-of-5 allocations in regular rooms,
+        // auto-redistribute so the user gets the optimal multiples-of-5 composition with sisa in last room immediately!
+        const tingkatsInSchool = new Set(parsed.map((s) => extractTingkat(s.className)));
+        if (tingkatsInSchool.size > 1) {
+          const roomTingkatMap = new Map<string, Map<string, number>>();
+          parsed.forEach((s) => {
+            if (s.roomId) {
+              if (!roomTingkatMap.has(s.roomId)) roomTingkatMap.set(s.roomId, new Map());
+              const t = extractTingkat(s.className);
+              const tMap = roomTingkatMap.get(s.roomId)!;
+              tMap.set(t, (tMap.get(t) || 0) + 1);
+            }
+          });
+
+          // Check if room-1 (regular room) has non-multiple-of-5 counts
+          const room1Map = roomTingkatMap.get('room-1') || roomTingkatMap.get(initialRooms[0]?.id);
+          const hasNonMultipleOfFive = room1Map
+            ? Array.from(room1Map.values()).some((c) => c % 5 !== 0)
+            : false;
+
+          const hasSingleTingkatRoom = Array.from(roomTingkatMap.values()).some(
+            (tMap) => tMap.size === 1
+          );
+
+          if (hasSingleTingkatRoom || hasNonMultipleOfFive) {
+            const { updatedStudents } = distributeCrossClass(parsed, initialRooms);
+            return updatedStudents;
+          }
+        }
+        return parsed;
+      } catch (e) {
+        console.error('Error parsing stored students:', e);
+      }
     }
-    // Pre-distribute initial students using Cross-Class so user gets an instant ready-to-test preview
+    // Pre-distribute initial students using Cross-Class so user gets an instant ready-to-test preview with all tingkats in every room
     const { updatedStudents } = distributeCrossClass(initialStudents, initialRooms);
     return updatedStudents;
   });
@@ -524,9 +560,9 @@ export default function App() {
     setStudents(updatedStudents);
     syncStudentsToCloud(updatedStudents).catch((err) => console.warn('Cloud sync students note:', err));
     if (unassignedStudents.length > 0) {
-      showToast(`Pembagian Sistem Silang selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
+      showToast(`Sistem Silang Kelipatan 5 selesai! Catatan: ${unassignedStudents.length} siswa belum dapat ruang.`);
     } else {
-      showToast(`Pembagian Sistem Silang berhasil! (Ruang 01-05: ${m1}, Ruang 06+: ${m2}).`);
+      showToast(`Sistem Silang berhasil! Komposisi per tingkat kelipatan 5 di setiap ruang, dan siswa sisa dialokasikan di ruangan terakhir prodi.`);
     }
   };
 

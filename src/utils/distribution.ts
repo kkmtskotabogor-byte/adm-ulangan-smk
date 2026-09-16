@@ -255,91 +255,267 @@ function partitionDistribution(
 }
 
 /**
- * Raw core: Distributes students across rooms using Cross-Class Alternating (Sistem Silang).
+ * Extracts school grade/level (Tingkat) from class name.
+ * e.g. "X AP 1" -> "X", "Kelas XI BD 2" -> "XI", "XII AP 1" -> "XII", "10 AKL" -> "10", "7A" -> "7"
+ */
+export function extractTingkat(className: string): string {
+  if (!className) return 'Lainnya';
+  const trimmed = className.trim();
+  const clean = trimmed.replace(/^(kelas|kls|tingkat|tk)\s+/i, '');
+  const romanMatch = clean.match(/^(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i);
+  if (romanMatch) return romanMatch[1].toUpperCase();
+  const numMatch = clean.match(/^(\d+)/);
+  if (numMatch) return numMatch[1];
+  return clean.split(/[\s_\-.]+/)[0] || clean;
+}
+
+/**
+ * Returns a numerical sort rank for common grade levels (Tingkat).
+ */
+export function getTingkatSortRank(t: string): number {
+  const norm = t.toUpperCase().trim();
+  const map: Record<string, number> = {
+    I: 1, '1': 1,
+    II: 2, '2': 2,
+    III: 3, '3': 3,
+    IV: 4, '4': 4,
+    V: 5, '5': 5,
+    VI: 6, '6': 6,
+    VII: 7, '7': 7,
+    VIII: 8, '8': 8,
+    IX: 9, '9': 9,
+    X: 10, '10': 10,
+    XI: 11, '11': 11,
+    XII: 12, '12': 12,
+  };
+  return map[norm] ?? 99;
+}
+
+/**
+ * Raw core: Distributes students across rooms using Cross-Class Alternating (Sistem Silang Semua Tingkat).
+ * MANDATE: Setiap ruangan WAJIB memiliki siswa dari SEMUA tingkat kelas (X, XI, XII / 7, 8, 9)
+ * secara proporsional dan posisi duduk bersilangan agar tidak ada siswa se-tingkat bersebelahan.
  */
 function rawDistributeCrossClass(
   students: Student[],
   rooms: ExamRoom[]
 ): { updatedStudents: Student[]; unassignedStudents: Student[] } {
-  // Group students by className
-  const classGroups = new Map<string, Student[]>();
+  if (rooms.length === 0 || students.length === 0) {
+    return { updatedStudents: students, unassignedStudents: [] };
+  }
+
+  // 1. Group students by Tingkat
+  const tingkatGroups = new Map<string, Student[]>();
   students.forEach((s) => {
-    const list = classGroups.get(s.className) || [];
+    const t = extractTingkat(s.className);
+    const list = tingkatGroups.get(t) || [];
     list.push({ ...s });
-    classGroups.set(s.className, list);
+    tingkatGroups.set(t, list);
   });
 
-  const classNames = Array.from(classGroups.keys());
+  // Sort distinct tingkats logically (e.g. X, XI, XII or 7, 8, 9)
+  const distinctTingkats = Array.from(tingkatGroups.keys()).sort((a, b) => {
+    const rA = getTingkatSortRank(a);
+    const rB = getTingkatSortRank(b);
+    if (rA !== rB) return rA - rB;
+    return a.localeCompare(b);
+  });
 
-  // Split classes into two streams
-  const streamA: Student[] = [];
-  const streamB: Student[] = [];
+  // 2. Inside each tingkat, interleave students across its various classes
+  // e.g., in Tingkat X: interleave X AP 1 and X AP 2 so both classes are evenly spread
+  const tingkatQueues = new Map<string, Student[]>();
+  distinctTingkats.forEach((t) => {
+    const list = tingkatGroups.get(t) || [];
+    const classMap = new Map<string, Student[]>();
+    list.forEach((s) => {
+      const clsList = classMap.get(s.className) || [];
+      clsList.push(s);
+      classMap.set(s.className, clsList);
+    });
 
-  classNames.forEach((cls, idx) => {
-    const group = classGroups.get(cls) || [];
-    if (idx % 2 === 0) {
-      streamA.push(...group);
-    } else {
-      streamB.push(...group);
+    // Sort each class alphabetically by name
+    classMap.forEach((clsStudents) => {
+      clsStudents.sort((a, b) => a.name.localeCompare(b.name));
+    });
+
+    // Interleave the classes within this tingkat
+    const classNames = Array.from(classMap.keys()).sort();
+    const interleaved: Student[] = [];
+    let hasMore = true;
+    let round = 0;
+    while (hasMore) {
+      hasMore = false;
+      for (const cls of classNames) {
+        const clsStudents = classMap.get(cls)!;
+        if (round < clsStudents.length) {
+          interleaved.push(clsStudents[round]);
+          hasMore = true;
+        }
+      }
+      round++;
     }
+    tingkatQueues.set(t, interleaved);
   });
 
-  let indexA = 0;
-  let indexB = 0;
+  // 3. Multiples of 5 per Tingkat in Regular Rooms, Leftover/Excess in the Last Room of the Program Study
+  // MANDATE: Komposisi per ruang dibuat setiap tingkat kelipatan 5 (5, 10, 15, dst.).
+  // Siswa yang lebih / sisa ditaruh di ruangan paling akhir setiap program studi.
+  const numRooms = rooms.length;
+  const regularRooms = numRooms > 1 ? rooms.slice(0, numRooms - 1) : rooms;
+  const lastRoom = numRooms > 1 ? rooms[numRooms - 1] : null;
 
+  // roomAllocations: roomId -> Map<tingkat, Student[]>
+  const roomAllocations = new Map<string, Map<string, Student[]>>();
+  rooms.forEach((r) => {
+    const m = new Map<string, Student[]>();
+    distinctTingkats.forEach((t) => m.set(t, []));
+    roomAllocations.set(r.id, m);
+  });
+
+  // Track remaining students available in each tingkat queue to allocate
+  const remainingCounts = new Map<string, number>();
+  distinctTingkats.forEach((t) => {
+    remainingCounts.set(t, (tingkatQueues.get(t) || []).length);
+  });
+
+  // If there are multiple rooms, allocate multiples of 5 to the regular rooms first
+  if (numRooms > 1) {
+    regularRooms.forEach((room, roomIdx) => {
+      const cap = room.capacity || 20;
+      const targetBlocks = Math.floor(cap / 5); // e.g. 20 / 5 = 4 blocks of 5
+      let allocatedBlocks = 0;
+      const targetRoomMap = roomAllocations.get(room.id)!;
+
+      // Phase A: Give at least 1 block of 5 to each available tingkat if possible
+      // to ensure all tingkats are represented in the room
+      for (let i = 0; i < distinctTingkats.length; i++) {
+        // Rotate start index across rooms for fair distribution of tie-breaks
+        const t = distinctTingkats[(roomIdx + i) % distinctTingkats.length];
+        const count = remainingCounts.get(t) || 0;
+        if (allocatedBlocks < targetBlocks && count >= 5) {
+          const q = tingkatQueues.get(t)!;
+          const assignedList = targetRoomMap.get(t)!;
+          for (let k = 0; k < 5; k++) {
+            assignedList.push(q.shift()!);
+          }
+          remainingCounts.set(t, count - 5);
+          allocatedBlocks++;
+        }
+      }
+
+      // Phase B: Fill remaining blocks of 5 in this room using the tingkat with the most remaining students
+      while (allocatedBlocks < targetBlocks) {
+        // Find tingkat with highest remaining students that has at least 5 students
+        let bestTingkat: string | null = null;
+        let maxRem = -1;
+
+        distinctTingkats.forEach((t) => {
+          const rem = remainingCounts.get(t) || 0;
+          if (rem >= 5 && rem > maxRem) {
+            maxRem = rem;
+            bestTingkat = t;
+          }
+        });
+
+        if (!bestTingkat) {
+          // No tingkat has at least 5 students left to form a block
+          break;
+        }
+
+        const q = tingkatQueues.get(bestTingkat)!;
+        const assignedList = targetRoomMap.get(bestTingkat)!;
+        for (let k = 0; k < 5; k++) {
+          assignedList.push(q.shift()!);
+        }
+        remainingCounts.set(bestTingkat, (remainingCounts.get(bestTingkat) || 0) - 5);
+        allocatedBlocks++;
+      }
+    });
+
+    // Phase C: Assign ALL remaining students (the leftovers / "yang lebih") into the LAST ROOM
+    if (lastRoom) {
+      const lastRoomMap = roomAllocations.get(lastRoom.id)!;
+      distinctTingkats.forEach((t) => {
+        const q = tingkatQueues.get(t) || [];
+        const lastRoomList = lastRoomMap.get(t)!;
+        while (q.length > 0) {
+          lastRoomList.push(q.shift()!);
+        }
+        remainingCounts.set(t, 0);
+      });
+    }
+  } else {
+    // Single room case: assign all students to that room up to capacity
+    const singleRoom = rooms[0];
+    const targetRoomMap = roomAllocations.get(singleRoom.id)!;
+    distinctTingkats.forEach((t) => {
+      const q = tingkatQueues.get(t) || [];
+      const assignedList = targetRoomMap.get(t)!;
+      while (q.length > 0) {
+        assignedList.push(q.shift()!);
+      }
+    });
+  }
+
+  // 4. Assign seats inside each room: Cross-Alternating (Sistem Silang) so adjacent seats have different tingkats
   const assignedStudents: Student[] = [];
+  const unassignedStudents: Student[] = [];
 
-  for (const room of rooms) {
+  rooms.forEach((room) => {
     const cap = room.capacity || 20;
+    const roomMap = roomAllocations.get(room.id)!;
 
-    for (let seat = 1; seat <= cap; seat++) {
-      let selectedStudent: Student | null = null;
+    let currentSeat = 1;
+    let lastTingkat: string | null = null;
 
-      // Odd seats take from streamA if available, otherwise fallback
-      if (seat % 2 === 1) {
-        if (indexA < streamA.length) {
-          selectedStudent = streamA[indexA++];
-        } else if (indexB < streamB.length) {
-          selectedStudent = streamB[indexB++];
-        }
-      } else {
-        // Even seats take from streamB if available, otherwise fallback
-        if (indexB < streamB.length) {
-          selectedStudent = streamB[indexB++];
-        } else if (indexA < streamA.length) {
-          selectedStudent = streamA[indexA++];
-        }
-      }
+    while (currentSeat <= cap) {
+      // Find candidate tingkats with remaining students
+      const candidates = distinctTingkats.filter((t) => (roomMap.get(t) || []).length > 0);
+      if (candidates.length === 0) break;
 
-      if (selectedStudent) {
-        selectedStudent.roomId = room.id;
-        selectedStudent.roomName = room.name;
-        selectedStudent.seatNumber = seat;
-        assignedStudents.push(selectedStudent);
-      }
+      // Prefer a different tingkat than the previous seat to prevent adjacent same-tingkat seats
+      const nonConsecutive = candidates.filter((t) => t !== lastTingkat);
+      const pool = nonConsecutive.length > 0 ? nonConsecutive : candidates;
+
+      // Pick the tingkat with the most remaining students
+      pool.sort((a, b) => {
+        const lenA = (roomMap.get(a) || []).length;
+        const lenB = (roomMap.get(b) || []).length;
+        if (lenA !== lenB) return lenB - lenA;
+        return a.localeCompare(b);
+      });
+
+      const chosenTingkat = pool[0];
+      const student = roomMap.get(chosenTingkat)!.shift()!;
+      student.roomId = room.id;
+      student.roomName = room.name;
+      student.seatNumber = currentSeat;
+      assignedStudents.push(student);
+      lastTingkat = chosenTingkat;
+      currentSeat++;
     }
-  }
 
-  // Leftovers
-  const unassigned: Student[] = [];
-  while (indexA < streamA.length) {
-    const s = { ...streamA[indexA++], roomId: undefined, roomName: undefined, seatNumber: undefined };
-    unassigned.push(s);
-  }
-  while (indexB < streamB.length) {
-    const s = { ...streamB[indexB++], roomId: undefined, roomName: undefined, seatNumber: undefined };
-    unassigned.push(s);
-  }
+    // Any overflow students that exceeded this room's capacity become unassigned
+    distinctTingkats.forEach((t) => {
+      const leftover = roomMap.get(t)!;
+      while (leftover.length > 0) {
+        const s = leftover.shift()!;
+        unassignedStudents.push({ ...s, roomId: undefined, roomName: undefined, seatNumber: undefined });
+      }
+    });
+  });
 
   const studentMap = new Map<string, Student>();
   assignedStudents.forEach((s) => studentMap.set(s.id, s));
-  unassigned.forEach((s) => studentMap.set(s.id, s));
+  unassignedStudents.forEach((s) => studentMap.set(s.id, s));
 
-  const finalStudents = students.map((s) => studentMap.get(s.id) || s);
+  const finalStudents = students.map(
+    (s) => studentMap.get(s.id) || { ...s, roomId: undefined, roomName: undefined, seatNumber: undefined }
+  );
 
   return {
     updatedStudents: finalStudents,
-    unassignedStudents: unassigned,
+    unassignedStudents,
   };
 }
 
@@ -433,20 +609,9 @@ export function distributeSequential(
 }
 
 /**
- * Extracts school grade/level (Tingkat) from class name.
- */
-export function extractTingkat(className: string): string {
-  if (!className) return 'Lainnya';
-  const trimmed = className.trim();
-  const romanMatch = trimmed.match(/^(XII|XI|X|IX|VIII|VII|VI|V|IV|III|II|I)\b/i);
-  if (romanMatch) return romanMatch[1].toUpperCase();
-  const numMatch = trimmed.match(/^(\d+)/);
-  if (numMatch) return numMatch[1];
-  return trimmed.split(/[\s_\-.]+/)[0] || trimmed;
-}
-
-/**
  * Raw core: Cross-Grade Double-Desk Distribution (1 Meja 2 Siswa Beda Tingkat).
+ * MANDATE: Setiap ruangan WAJIB memiliki siswa dari SEMUA tingkat kelas (X, XI, XII / 7, 8, 9)
+ * dengan susunan 1 meja berisi 2 siswa berbeda tingkat.
  */
 function rawDistributeCrossLevelDoubleDesk(
   students: Student[],
@@ -504,45 +669,89 @@ function rawDistributeCrossLevelDoubleDesk(
     }
   });
 
-  const orderedDesks: typeof desks = [];
+  // Normalize order of students within each desk
+  Array.from(pairGroups.keys()).forEach((pairKey) => {
+    const group = pairGroups.get(pairKey)!;
+    const [t1] = pairKey.split('-');
+    group.forEach((d) => {
+      if (d.right && extractTingkat(d.left.className) !== t1) {
+        const tmp = d.left;
+        d.left = d.right;
+        d.right = tmp;
+      }
+    });
+    group.sort((a, b) => {
+      const cmpLeft = a.left.className.localeCompare(b.left.className) || a.left.name.localeCompare(b.left.name);
+      if (cmpLeft !== 0) return cmpLeft;
+      if (a.right && b.right) {
+        return a.right.className.localeCompare(b.right.className) || a.right.name.localeCompare(b.right.name);
+      }
+      return 0;
+    });
+  });
+
   const singleDesks = desks.filter((d) => !d.right);
 
-  Array.from(pairGroups.keys())
-    .sort()
-    .forEach((pairKey) => {
-      const group = pairGroups.get(pairKey)!;
-      const [t1] = pairKey.split('-');
-      group.forEach((d) => {
-        if (d.right && extractTingkat(d.left.className) !== t1) {
-          const tmp = d.left;
-          d.left = d.right;
-          d.right = tmp;
-        }
-      });
-      group.sort((a, b) => {
-        const cmpLeft = a.left.className.localeCompare(b.left.className) || a.left.name.localeCompare(b.left.name);
-        if (cmpLeft !== 0) return cmpLeft;
-        if (a.right && b.right) {
-          return a.right.className.localeCompare(b.right.className) || a.right.name.localeCompare(b.right.name);
-        }
-        return 0;
-      });
-      orderedDesks.push(...group);
-    });
+  // 4. Distribute paired desks across rooms in round-robin fashion across all pair types
+  // so that EVERY ROOM receives desks from each pair combination (all tingkats represented)
+  const roomDeskAllocations = new Map<string, typeof desks>();
+  rooms.forEach((r) => roomDeskAllocations.set(r.id, []));
 
-  orderedDesks.push(...singleDesks);
+  const sortedPairKeys = Array.from(pairGroups.keys()).sort();
+  const pairQueues = sortedPairKeys.map((k) => [...pairGroups.get(k)!]);
 
-  // 4. Assign desks to rooms
-  let deskPointer = 0;
+  let anyPairRemaining = true;
+  let roomIndex = 0;
+
+  while (anyPairRemaining) {
+    anyPairRemaining = false;
+    for (let pIdx = 0; pIdx < pairQueues.length; pIdx++) {
+      const q = pairQueues[pIdx];
+      if (q.length > 0) {
+        anyPairRemaining = true;
+        // Find next room that still has desk capacity
+        let attempts = 0;
+        let assigned = false;
+        while (attempts < rooms.length) {
+          const room = rooms[(roomIndex + attempts) % rooms.length];
+          const currentDesks = roomDeskAllocations.get(room.id)!;
+          const maxDesks = Math.floor((room.capacity || 40) / 2);
+          if (currentDesks.length < maxDesks) {
+            currentDesks.push(q.shift()!);
+            roomIndex = (roomIndex + attempts + 1) % rooms.length;
+            assigned = true;
+            break;
+          }
+          attempts++;
+        }
+        if (!assigned) {
+          // All rooms are full of desks
+          break;
+        }
+      }
+    }
+  }
+
+  // Distribute any leftover single desks to rooms with remaining space
+  let singleIdx = 0;
+  for (const room of rooms) {
+    const currentDesks = roomDeskAllocations.get(room.id)!;
+    const maxDesks = Math.floor((room.capacity || 40) / 2);
+    while (currentDesks.length < maxDesks && singleIdx < singleDesks.length) {
+      currentDesks.push(singleDesks[singleIdx++]);
+    }
+  }
+
+  // 5. Assign seat numbers within each room
   const assignedStudents: Student[] = [];
+  const unassignedStudents: Student[] = [];
 
   for (const room of rooms) {
     const cap = room.capacity || 40;
     const half = Math.floor(cap / 2);
-    const roomSlice = orderedDesks.slice(deskPointer, deskPointer + half);
-    deskPointer += half;
+    const roomDesks = roomDeskAllocations.get(room.id) || [];
 
-    roomSlice.forEach((desk, idx) => {
+    roomDesks.forEach((desk, idx) => {
       let leftSeat: number;
       let rightSeat: number;
 
@@ -572,17 +781,20 @@ function rawDistributeCrossLevelDoubleDesk(
     });
   }
 
-  // 5. Remaining unassigned students
-  const unassigned: Student[] = [];
-  if (deskPointer < orderedDesks.length) {
-    const remainingDesks = orderedDesks.slice(deskPointer);
-    remainingDesks.forEach((d) => {
-      unassigned.push({ ...d.left, roomId: undefined, roomName: undefined, seatNumber: undefined });
-      if (d.right) {
-        unassigned.push({ ...d.right, roomId: undefined, roomName: undefined, seatNumber: undefined });
-      }
-    });
+  // Gather unassigned students from remaining single desks or queues
+  while (singleIdx < singleDesks.length) {
+    const d = singleDesks[singleIdx++];
+    unassignedStudents.push({ ...d.left, roomId: undefined, roomName: undefined, seatNumber: undefined });
   }
+  pairQueues.forEach((q) => {
+    while (q.length > 0) {
+      const d = q.shift()!;
+      unassignedStudents.push({ ...d.left, roomId: undefined, roomName: undefined, seatNumber: undefined });
+      if (d.right) {
+        unassignedStudents.push({ ...d.right, roomId: undefined, roomName: undefined, seatNumber: undefined });
+      }
+    }
+  });
 
   // 6. Safety check: resolve any same-tingkat desk conflict
   for (const room of rooms) {
@@ -627,13 +839,13 @@ function rawDistributeCrossLevelDoubleDesk(
 
   const studentMap = new Map<string, Student>();
   assignedStudents.forEach((s) => studentMap.set(s.id, s));
-  unassigned.forEach((s) => studentMap.set(s.id, s));
+  unassignedStudents.forEach((s) => studentMap.set(s.id, s));
 
-  const finalStudents = students.map((s) => studentMap.get(s.id) || s);
+  const finalStudents = students.map((s) => studentMap.get(s.id) || { ...s, roomId: undefined, roomName: undefined, seatNumber: undefined });
 
   return {
     updatedStudents: finalStudents,
-    unassignedStudents: unassigned,
+    unassignedStudents,
   };
 }
 
