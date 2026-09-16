@@ -5,7 +5,7 @@
  * Automatically limits dimension to maxDimension (default 400px) to maintain
  * crisp print resolution while avoiding localStorage quota limits.
  */
-export async function processLogoFile(file: File, maxDimension = 400): Promise<string> {
+export async function processLogoFile(file: File, maxDimension = 320): Promise<string> {
   if (!file.type.startsWith('image/')) {
     throw new Error('File yang diunggah harus berupa gambar (PNG, JPG, SVG, WebP).');
   }
@@ -14,7 +14,14 @@ export async function processLogoFile(file: File, maxDimension = 400): Promise<s
   if (file.type === 'image/svg+xml') {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
+      reader.onload = () => {
+        const res = reader.result as string;
+        if (res.length > 250000) {
+          reject(new Error('File SVG terlalu besar. Gunakan SVG dengan ukuran di bawah 200KB.'));
+        } else {
+          resolve(res);
+        }
+      };
       reader.onerror = (err) => reject(err);
       reader.readAsDataURL(file);
     });
@@ -51,7 +58,20 @@ export async function processLogoFile(file: File, maxDimension = 400): Promise<s
         ctx.drawImage(img, 0, 0, width, height);
 
         // Export as PNG for transparency support
-        const dataUrl = canvas.toDataURL('image/png', 0.92);
+        let dataUrl = canvas.toDataURL('image/png');
+        
+        // If PNG is still large (> 200KB), downscale further to guarantee cloud sync across devices
+        if (dataUrl.length > 200000) {
+          const downscaledCanvas = document.createElement('canvas');
+          downscaledCanvas.width = Math.round(width * 0.7);
+          downscaledCanvas.height = Math.round(height * 0.7);
+          const downscaledCtx = downscaledCanvas.getContext('2d');
+          if (downscaledCtx) {
+            downscaledCtx.drawImage(canvas, 0, 0, downscaledCanvas.width, downscaledCanvas.height);
+            dataUrl = downscaledCanvas.toDataURL('image/png');
+          }
+        }
+
         resolve(dataUrl);
       };
       img.onerror = () => reject(new Error('Gagal memproses file gambar.'));

@@ -317,10 +317,11 @@ export async function syncStudentsToCloud(students: Student[]): Promise<void> {
       const batch = writeBatch(db);
       chunk.forEach((s) => {
         const ref = doc(db, 'students', s.id);
-        batch.set(ref, {
+        const cleanData = cleanForFirestore({
           ...s,
           updatedAt: new Date().toISOString(),
         });
+        batch.set(ref, cleanData);
       });
       await batch.commit();
     }
@@ -558,9 +559,15 @@ export async function saveProctorMatrixToCloud(
 // Master check if Cloud Database is empty
 export async function isCloudDatabaseInitialized(): Promise<boolean> {
   try {
-    const configDoc = await getDocs(collection(db, 'rooms'));
-    return !configDoc.empty;
-  } catch {
-    return false;
+    const configSnap = await getDocFromServer(doc(db, 'exam_config', 'current'));
+    if (configSnap.exists()) {
+      return true;
+    }
+    const roomsSnap = await getDocs(collection(db, 'rooms'));
+    return !roomsSnap.empty;
+  } catch (err) {
+    // If check fails (offline or transient error), do NOT assume uninitialized to avoid overwriting cloud
+    console.warn('isCloudDatabaseInitialized check note:', err);
+    return true;
   }
 }

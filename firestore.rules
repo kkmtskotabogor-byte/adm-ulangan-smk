@@ -20,9 +20,9 @@ service cloud.firestore {
              data.examTitle is string && data.examTitle.size() <= 150 &&
              (!('major1Name' in data) || (data.major1Name is string && data.major1Name.size() <= 100)) &&
              (!('major2Name' in data) || (data.major2Name is string && data.major2Name.size() <= 100)) &&
-             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 600000)) &&
-             (!('signatureUrl' in data) || (data.signatureUrl is string && data.signatureUrl.size() <= 600000)) &&
-             (!('stampUrl' in data) || (data.stampUrl is string && data.stampUrl.size() <= 600000));
+             (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 850000)) &&
+             (!('signatureUrl' in data) || (data.signatureUrl is string && data.signatureUrl.size() <= 850000)) &&
+             (!('stampUrl' in data) || (data.stampUrl is string && data.stampUrl.size() <= 850000));
     }
 
     // Room Validator

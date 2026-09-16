@@ -31,6 +31,15 @@ interface SeatingChartViewProps {
   onSwapSeats: (studentId1: string, studentId2: string) => void;
   onDistributeCrossLevel?: (pattern?: 'photo_order' | 'sequential_desk') => void;
   onNavigateTab?: (tab: any) => void;
+  onOpenTransferModal?: (studentId?: string, roomId?: string, seatNumber?: number) => void;
+  onMoveStudent?: (
+    studentId: string,
+    targetRoomId: string,
+    targetSeatNumber?: number,
+    conflictMode?: 'swap' | 'shift' | 'unassign'
+  ) => void;
+  onUnassignStudent?: (studentId: string) => void;
+  onReorderRoomSeats?: (roomId: string) => void;
 }
 
 export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
@@ -42,9 +51,17 @@ export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
   onSwapSeats,
   onDistributeCrossLevel,
   onNavigateTab,
+  onOpenTransferModal,
+  onMoveStudent,
+  onUnassignStudent,
+  onReorderRoomSeats,
 }) => {
   const currentRoom = rooms.find((r) => r.id === selectedRoomId) || rooms[0];
   const [selectedSeatForSwap, setSelectedSeatForSwap] = useState<Student | null>(null);
+  const [activeSeatAction, setActiveSeatAction] = useState<{
+    student: Student;
+    seatNumber: number;
+  } | null>(null);
 
   // Layout mode: 'double_40' (1 meja 2 peserta) or 'single_20' (1 meja 1 peserta)
   const [layoutMode, setLayoutMode] = useState<'double_40' | 'single_20'>('double_40');
@@ -135,16 +152,33 @@ export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
     return palette[idx >= 0 ? idx % palette.length : 0];
   };
 
-  const handleSeatClick = (student?: Student) => {
-    if (!student) return;
-    if (!selectedSeatForSwap) {
-      setSelectedSeatForSwap(student);
-    } else if (selectedSeatForSwap.id === student.id) {
-      setSelectedSeatForSwap(null);
+  const handleSeatClick = (student?: Student, seatNum?: number) => {
+    if (selectedSeatForSwap) {
+      if (!student) {
+        // Empty seat clicked while student is selected for swap/move
+        if (seatNum && onMoveStudent) {
+          onMoveStudent(selectedSeatForSwap.id, currentRoom.id, seatNum, 'shift');
+          setSelectedSeatForSwap(null);
+        }
+      } else if (selectedSeatForSwap.id === student.id) {
+        // Deselect
+        setSelectedSeatForSwap(null);
+      } else {
+        // Execute swap
+        onSwapSeats(selectedSeatForSwap.id, student.id);
+        setSelectedSeatForSwap(null);
+      }
     } else {
-      // Execute swap
-      onSwapSeats(selectedSeatForSwap.id, student.id);
-      setSelectedSeatForSwap(null);
+      if (student) {
+        // Open quick seat action dialog
+        setActiveSeatAction({
+          student,
+          seatNumber: seatNum || student.seatNumber || 1,
+        });
+      } else if (seatNum && onOpenTransferModal) {
+        // Empty seat clicked -> open transfer modal to fill it
+        onOpenTransferModal(undefined, currentRoom.id, seatNum);
+      }
     }
   };
 
@@ -237,6 +271,18 @@ export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
                 ✕
               </button>
             </div>
+          )}
+
+          {/* Pindah Peserta Antar Ruang & Atur Meja */}
+          {onOpenTransferModal && (
+            <button
+              onClick={() => onOpenTransferModal(undefined, currentRoom.id)}
+              title="Pindahkan siswa antar ruang atau atur nomor meja secara manual"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors cursor-pointer shadow-2xs"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Pindah / Atur Meja Antar-Ruang</span>
+            </button>
           )}
 
           {/* Quick Cross Level Distribution trigger */}
@@ -588,14 +634,14 @@ export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
                           <div className="grid grid-cols-2 divide-x divide-black h-full flex-1">
                             {/* Left Seat */}
                             <div
-                              onClick={() => handleSeatClick(leftStudent)}
-                              title={leftStudent ? `${leftStudent.name} (${leftStudent.className}) - Klik untuk tukar` : 'Kursi Kosong'}
+                              onClick={() => handleSeatClick(leftStudent, leftSeatNum)}
+                              title={leftStudent ? `${leftStudent.name} (${leftStudent.className}) - Klik untuk atur / tukar` : `Meja #${leftSeatNum} Kosong - Klik untuk isi peserta`}
                               className={`p-1 flex flex-col justify-between transition-colors ${
                                 isSelectedLeft
                                   ? 'bg-amber-100 ring-2 ring-amber-500 z-10'
                                   : leftStudent
                                   ? 'hover:bg-slate-100 cursor-pointer'
-                                  : 'bg-white'
+                                  : 'bg-white hover:bg-indigo-50/50 cursor-pointer'
                               }`}
                             >
                               {/* Top: Jurusan & Student Name */}
@@ -642,14 +688,14 @@ export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
 
                             {/* Right Seat */}
                             <div
-                              onClick={() => handleSeatClick(rightStudent)}
-                              title={rightStudent ? `${rightStudent.name} (${rightStudent.className}) - Klik untuk tukar` : 'Kursi Kosong'}
+                              onClick={() => handleSeatClick(rightStudent, rightSeatNum)}
+                              title={rightStudent ? `${rightStudent.name} (${rightStudent.className}) - Klik untuk atur / tukar` : `Meja #${rightSeatNum} Kosong - Klik untuk isi peserta`}
                               className={`p-1 flex flex-col justify-between transition-colors ${
                                 isSelectedRight
                                   ? 'bg-amber-100 ring-2 ring-amber-500 z-10'
                                   : rightStudent
                                   ? 'hover:bg-slate-100 cursor-pointer'
-                                  : 'bg-white'
+                                  : 'bg-white hover:bg-indigo-50/50 cursor-pointer'
                               }`}
                             >
                               {/* Top: Jurusan & Student Name */}
@@ -773,7 +819,8 @@ export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
                   return (
                     <div
                       key={seatNum}
-                      onClick={() => handleSeatClick(student)}
+                      onClick={() => handleSeatClick(student, seatNum)}
+                      title={student ? `${student.name} (${student.className}) - Klik untuk atur / tukar` : `Meja #${seatNum} Kosong - Klik untuk isi peserta`}
                       className={`relative p-3 rounded-lg border-2 transition-all flex flex-col justify-between min-h-[105px] cursor-pointer ${
                         isSelectedForSwap
                           ? 'border-amber-500 bg-amber-50 ring-2 ring-amber-400/40 shadow-sm'
@@ -862,6 +909,122 @@ export const SeatingChartView: React.FC<SeatingChartViewProps> = ({
               <div className="text-slate-500">Pengawas Ruang Ujian</div>
               <div className="h-10"></div>
               <div className="font-bold underline text-slate-900">{currentRoom.proctor1 || '(...........................)'}</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Seat Action Dialog */}
+      {activeSeatAction && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 no-print">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+              <div className="flex items-center gap-2.5">
+                <span className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 font-mono font-black flex items-center justify-center text-sm shadow-2xs">
+                  {String(activeSeatAction.seatNumber).padStart(2, '0')}
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-800">Pengaturan Meja Siswa</h3>
+                  <p className="text-[11px] text-slate-500">{currentRoom.name}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setActiveSeatAction(null)}
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {/* Student Details Card */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
+                <div className="text-xs font-bold text-slate-900 leading-tight">
+                  {activeSeatAction.student.name}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 mt-2 text-[11px] text-slate-600">
+                  <span className="font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-indigo-700 font-bold">
+                    {activeSeatAction.student.examNumber || activeSeatAction.student.nisn || '-'}
+                  </span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-medium">
+                    {activeSeatAction.student.className}
+                  </span>
+                  <span className="bg-white px-2 py-0.5 rounded border border-slate-200 font-medium text-slate-500">
+                    {activeSeatAction.student.major || 'Umum'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <button
+                  onClick={() => {
+                    setSelectedSeatForSwap(activeSeatAction.student);
+                    setActiveSeatAction(null);
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-bold text-xs transition-colors cursor-pointer text-left"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ArrowLeftRight className="w-4 h-4 text-amber-600" />
+                    <div>
+                      <div>Tukar Meja dengan Siswa Lain</div>
+                      <div className="text-[10px] font-normal text-amber-700">Pilih siswa kedua di denah untuk bertukar posisi</div>
+                    </div>
+                  </div>
+                  <span className="text-amber-600 font-bold">→</span>
+                </button>
+
+                {onOpenTransferModal && (
+                  <button
+                    onClick={() => {
+                      const studentId = activeSeatAction.student.id;
+                      const seatNumber = activeSeatAction.seatNumber;
+                      setActiveSeatAction(null);
+                      onOpenTransferModal(studentId, currentRoom.id, seatNumber);
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-900 font-bold text-xs transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <Sliders className="w-4 h-4 text-indigo-600" />
+                      <div>
+                        <div>Pindahkan ke Ruang Lain...</div>
+                        <div className="text-[10px] font-normal text-indigo-700">Pilih ruang &amp; nomor meja tujuan secara manual</div>
+                      </div>
+                    </div>
+                    <span className="text-indigo-600 font-bold">→</span>
+                  </button>
+                )}
+
+                {onUnassignStudent && (
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Keluarkan ${activeSeatAction.student.name} dari ${currentRoom.name}?`)) {
+                        onUnassignStudent(activeSeatAction.student.id);
+                        setActiveSeatAction(null);
+                      }
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-800 font-bold text-xs transition-colors cursor-pointer text-left"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <RotateCcw className="w-4 h-4 text-rose-600" />
+                      <div>
+                        <div>Keluarkan dari Ruang Ujian</div>
+                        <div className="text-[10px] font-normal text-rose-600">Jadikan peserta belum terbagi ruangan (antrean)</div>
+                      </div>
+                    </div>
+                    <span className="text-rose-600 font-bold">✕</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 text-right">
+              <button
+                onClick={() => setActiveSeatAction(null)}
+                className="px-4 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>

@@ -15,7 +15,8 @@ import {
   UserCheck,
   Building,
   Sparkles,
-  BookOpen
+  BookOpen,
+  ArrowLeftRight
 } from 'lucide-react';
 import { getRoomMajorCategory, getMajorCategory } from '../utils/distribution';
 
@@ -34,6 +35,7 @@ interface RoomsViewProps {
   onApplySmkYak1Rule?: () => void;
   setActiveTab: (tab: ActiveTab) => void;
   onSelectRoomForSeating: (roomId: string) => void;
+  onOpenTransferModal?: (studentId?: string, roomId?: string, seatNumber?: number) => void;
 }
 
 export const RoomsView: React.FC<RoomsViewProps> = ({
@@ -51,6 +53,7 @@ export const RoomsView: React.FC<RoomsViewProps> = ({
   onApplySmkYak1Rule,
   setActiveTab,
   onSelectRoomForSeating,
+  onOpenTransferModal,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingRoom, setEditingRoom] = useState<ExamRoom | null>(null);
@@ -329,10 +332,23 @@ export const RoomsView: React.FC<RoomsViewProps> = ({
           </div>
         </div>
 
-        <div className="text-right hidden sm:block shrink-0">
-          <div className="text-[11px] font-medium text-slate-400">Daya Tampung Tersedia</div>
-          <div className="text-sm font-bold text-slate-900">
-            {totalCapacity} Bangku ({totalCapacity - totalAssigned} sisa)
+        <div className="flex items-center gap-3">
+          {onOpenTransferModal && (
+            <button
+              onClick={() => onOpenTransferModal()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors shadow-2xs cursor-pointer whitespace-nowrap"
+              title="Buka menu pindah peserta atau atur posisi denah meja antar-ruang"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Pindah / Atur Meja</span>
+            </button>
+          )}
+
+          <div className="text-right hidden sm:block shrink-0">
+            <div className="text-[11px] font-medium text-slate-400">Daya Tampung Tersedia</div>
+            <div className="text-sm font-bold text-slate-900">
+              {totalCapacity} Bangku ({totalCapacity - totalAssigned} sisa)
+            </div>
           </div>
         </div>
       </div>
@@ -460,17 +476,27 @@ export const RoomsView: React.FC<RoomsViewProps> = ({
               </div>
 
               {/* Bottom Action */}
-              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
                 <button
                   onClick={() => {
                     onSelectRoomForSeating(room.id);
                     setActiveTab('seating');
                   }}
-                  className="w-full py-2 px-3 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-lg border border-slate-200 shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 py-1.5 px-2.5 bg-white hover:bg-slate-50 text-slate-800 text-xs font-semibold rounded-lg border border-slate-200 shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   <Grid3X3 className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Buka Denah Meja Ruang</span>
+                  <span>Denah Meja</span>
                 </button>
+                {onOpenTransferModal && (
+                  <button
+                    onClick={() => onOpenTransferModal(undefined, room.id)}
+                    title="Buka pengaturan meja & mutasi peserta untuk ruangan ini"
+                    className="flex-1 py-1.5 px-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-lg border border-indigo-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Atur Siswa</span>
+                  </button>
+                )}
               </div>
             </div>
           );

@@ -22,6 +22,7 @@ import { ExamDocumentsView } from './components/ExamDocumentsView';
 import { ScheduleManagementView } from './components/ScheduleManagementView';
 import { LoginPortal } from './components/LoginPortal';
 import { CloudSyncModal } from './components/CloudSyncModal';
+import { StudentTransferModal } from './components/StudentTransferModal';
 import {
   subscribeToExamConfig,
   saveExamConfigToCloud,
@@ -131,6 +132,19 @@ export default function App() {
   const [isCloudConnected, setIsCloudConnected] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [showCloudSyncModal, setShowCloudSyncModal] = useState<boolean>(false);
+
+  // Cross-Room Student Transfer & Desk Editing Modal States
+  const [showTransferModal, setShowTransferModal] = useState<boolean>(false);
+  const [transferInitialStudentId, setTransferInitialStudentId] = useState<string | undefined>(undefined);
+  const [transferInitialRoomId, setTransferInitialRoomId] = useState<string | undefined>(undefined);
+  const [transferInitialSeatNumber, setTransferInitialSeatNumber] = useState<number | undefined>(undefined);
+
+  const handleOpenTransferModal = (studentId?: string, roomId?: string, seatNumber?: number) => {
+    setTransferInitialStudentId(studentId);
+    setTransferInitialRoomId(roomId || selectedRoomForSeating || rooms[0]?.id);
+    setTransferInitialSeatNumber(seatNumber);
+    setShowTransferModal(true);
+  };
 
   // Check URL query parameters for autoPrint when opened in a new tab
   useEffect(() => {
@@ -678,6 +692,187 @@ export default function App() {
     showToast('Posisi tempat duduk kedua siswa berhasil ditukar.');
   };
 
+  // Move a single student to a specific room & seat with conflict handling
+  const handleMoveStudentToRoom = (
+    studentId: string,
+    targetRoomId: string,
+    targetSeatNumber?: number,
+    conflictMode: 'swap' | 'shift' | 'unassign' = 'swap'
+  ) => {
+    setStudents((prev) => {
+      const studentToMove = prev.find((s) => s.id === studentId);
+      const targetRoom = rooms.find((r) => r.id === targetRoomId);
+      if (!studentToMove || !targetRoom) return prev;
+
+      const oldRoomId = studentToMove.roomId;
+      const oldRoomName = studentToMove.roomName;
+      const oldSeatNumber = studentToMove.seatNumber;
+
+      // Determine final target seat number
+      let finalSeatNumber = targetSeatNumber;
+      if (!finalSeatNumber || finalSeatNumber <= 0) {
+        // Find first empty seat in target room
+        const occupied = new Set(
+          prev
+            .filter((s) => s.roomId === targetRoomId && s.id !== studentId && s.seatNumber)
+            .map((s) => s.seatNumber as number)
+        );
+        for (let i = 1; i <= (targetRoom.capacity || 20); i++) {
+          if (!occupied.has(i)) {
+            finalSeatNumber = i;
+            break;
+          }
+        }
+        if (!finalSeatNumber) finalSeatNumber = targetRoom.capacity || 20;
+      }
+
+      // Check if target seat is occupied by another student
+      const conflictingStudent = prev.find(
+        (s) => s.roomId === targetRoomId && s.seatNumber === finalSeatNumber && s.id !== studentId
+      );
+
+      let nextStudents: Student[] = [];
+
+      if (conflictingStudent) {
+        if (conflictMode === 'swap') {
+          // Swap positions
+          nextStudents = prev.map((s) => {
+            if (s.id === studentId) {
+              return {
+                ...s,
+                roomId: targetRoom.id,
+                roomName: targetRoom.name,
+                seatNumber: finalSeatNumber,
+              };
+            }
+            if (s.id === conflictingStudent.id) {
+              return {
+                ...s,
+                roomId: oldRoomId,
+                roomName: oldRoomName,
+                seatNumber: oldSeatNumber,
+              };
+            }
+            return s;
+          });
+        } else if (conflictMode === 'shift') {
+          // Shift conflicting student to next empty seat
+          const occupied = new Set(
+            prev
+              .filter((s) => s.roomId === targetRoomId && s.id !== studentId && s.id !== conflictingStudent.id && s.seatNumber)
+              .map((s) => s.seatNumber as number)
+          );
+          occupied.add(finalSeatNumber);
+          let nextEmptySeat = 1;
+          while (occupied.has(nextEmptySeat)) {
+            nextEmptySeat++;
+          }
+
+          nextStudents = prev.map((s) => {
+            if (s.id === studentId) {
+              return {
+                ...s,
+                roomId: targetRoom.id,
+                roomName: targetRoom.name,
+                seatNumber: finalSeatNumber,
+              };
+            }
+            if (s.id === conflictingStudent.id) {
+              return {
+                ...s,
+                roomId: targetRoom.id,
+                roomName: targetRoom.name,
+                seatNumber: nextEmptySeat,
+              };
+            }
+            return s;
+          });
+        } else {
+          // Unassign conflicting student
+          nextStudents = prev.map((s) => {
+            if (s.id === studentId) {
+              return {
+                ...s,
+                roomId: targetRoom.id,
+                roomName: targetRoom.name,
+                seatNumber: finalSeatNumber,
+              };
+            }
+            if (s.id === conflictingStudent.id) {
+              return {
+                ...s,
+                roomId: undefined,
+                roomName: undefined,
+                seatNumber: undefined,
+              };
+            }
+            return s;
+          });
+        }
+      } else {
+        // No conflict
+        nextStudents = prev.map((s) => {
+          if (s.id === studentId) {
+            return {
+              ...s,
+              roomId: targetRoom.id,
+              roomName: targetRoom.name,
+              seatNumber: finalSeatNumber,
+            };
+          }
+          return s;
+        });
+      }
+
+      syncStudentsToCloud(nextStudents).catch(() => {});
+      return nextStudents;
+    });
+
+    const student = students.find((s) => s.id === studentId);
+    const room = rooms.find((r) => r.id === targetRoomId);
+    showToast(`Peserta "${student?.name || 'Siswa'}" berhasil dipindahkan ke ${room?.name || 'ruang tujuan'}.`);
+  };
+
+  // Unassign student from room
+  const handleUnassignStudent = (studentId: string) => {
+    setStudents((prev) => {
+      const next = prev.map((s) =>
+        s.id === studentId ? { ...s, roomId: undefined, roomName: undefined, seatNumber: undefined } : s
+      );
+      syncStudentsToCloud(next).catch(() => {});
+      return next;
+    });
+    showToast('Peserta berhasil dikeluarkan dari ruang ujian.');
+  };
+
+  // Reorder seats sequentially in a room (1..N)
+  const handleReorderRoomSeats = (roomId: string) => {
+    setStudents((prev) => {
+      const roomStudents = prev
+        .filter((s) => s.roomId === roomId)
+        .sort((a, b) => (a.seatNumber || 999) - (b.seatNumber || 999));
+
+      const updatedMap = new Map<string, number>();
+      roomStudents.forEach((s, idx) => {
+        updatedMap.set(s.id, idx + 1);
+      });
+
+      const next = prev.map((s) => {
+        if (s.roomId === roomId && updatedMap.has(s.id)) {
+          return {
+            ...s,
+            seatNumber: updatedMap.get(s.id),
+          };
+        }
+        return s;
+      });
+
+      syncStudentsToCloud(next).catch(() => {});
+      return next;
+    });
+    showToast('Nomor meja siswa di ruang ini berhasil dirapikan berurutan (1..N).');
+  };
+
   // Reset to initial full realistic dataset
   const handleResetData = () => {
     if (window.confirm('Apakah Anda yakin ingin memulihkan data SIM Ujian SMK YAK 1 (200 siswa, 10 ruang, jadwal resmi STS 20 sesi)?')) {
@@ -805,6 +1000,7 @@ export default function App() {
             onBulkImport={handleBulkImport}
             onRegenerateNumbers={handleRegenerateNumbers}
             onClearAll={handleClearAllStudents}
+            onOpenTransferModal={handleOpenTransferModal}
           />
         )}
 
@@ -824,6 +1020,7 @@ export default function App() {
             onApplySmkYak1Rule={handleApplySmkYak1Rule}
             setActiveTab={setActiveTab}
             onSelectRoomForSeating={setSelectedRoomForSeating}
+            onOpenTransferModal={handleOpenTransferModal}
           />
         )}
 
@@ -875,6 +1072,10 @@ export default function App() {
             onSwapSeats={handleSwapSeats}
             onDistributeCrossLevel={handleDistributeCrossLevel}
             onNavigateTab={setActiveTab}
+            onOpenTransferModal={handleOpenTransferModal}
+            onMoveStudent={handleMoveStudentToRoom}
+            onUnassignStudent={handleUnassignStudent}
+            onReorderRoomSeats={handleReorderRoomSeats}
           />
         )}
 
@@ -901,6 +1102,22 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* Cross-Room Student Transfer & Seating Arrangement Modal */}
+      <StudentTransferModal
+        isOpen={showTransferModal}
+        onClose={() => setShowTransferModal(false)}
+        students={students}
+        rooms={rooms}
+        config={config}
+        initialStudentId={transferInitialStudentId}
+        initialRoomId={transferInitialRoomId}
+        initialSeatNumber={transferInitialSeatNumber}
+        onMoveStudent={handleMoveStudentToRoom}
+        onSwapStudents={handleSwapSeats}
+        onUnassignStudent={handleUnassignStudent}
+        onReorderRoomSeats={handleReorderRoomSeats}
+      />
 
       {/* Cloud Firestore Multi-Device Sync Modal */}
       <CloudSyncModal

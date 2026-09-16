@@ -16,7 +16,8 @@ import {
   Layers,
   CheckSquare,
   Filter,
-  BookOpen
+  BookOpen,
+  ArrowLeftRight
 } from 'lucide-react';
 import { inferStudentMajor } from '../utils/distribution';
 
@@ -30,6 +31,7 @@ interface StudentsViewProps {
   onBulkImport: (newStudents: Omit<Student, 'id'>[]) => void;
   onRegenerateNumbers: () => void;
   onClearAll: () => void;
+  onOpenTransferModal?: (studentId?: string, roomId?: string, seatNumber?: number) => void;
 }
 
 export const StudentsView: React.FC<StudentsViewProps> = ({
@@ -42,6 +44,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
   onBulkImport,
   onRegenerateNumbers,
   onClearAll,
+  onOpenTransferModal,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedClass, setSelectedClass] = useState<string>('ALL');
@@ -527,6 +530,17 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
             <span>Import Excel / CSV</span>
           </button>
 
+          {onOpenTransferModal && (
+            <button
+              onClick={() => onOpenTransferModal()}
+              title="Pindahkan siswa antar ruang atau atur nomor meja secara manual"
+              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors shadow-2xs cursor-pointer"
+            >
+              <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Pindah Ruang &amp; Meja</span>
+            </button>
+          )}
+
           <button
             onClick={handleExportCSV}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors"
@@ -795,15 +809,44 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
                             <span className="font-bold">{student.roomName}</span>
                             <span>•</span>
                             <span>Meja {String(student.seatNumber).padStart(2, '0')}</span>
+                            {onOpenTransferModal && (
+                              <button
+                                onClick={() => onOpenTransferModal(student.id, student.roomId, student.seatNumber)}
+                                title="Pindah Ruangan / Atur Meja"
+                                className="ml-1 p-0.5 text-emerald-700 hover:text-indigo-700 hover:bg-emerald-100 rounded cursor-pointer transition-colors"
+                              >
+                                <ArrowLeftRight className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         ) : (
-                          <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
-                            Belum Terbagi
-                          </span>
+                          <div className="inline-flex items-center gap-1.5">
+                            <span className="text-[11px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                              Belum Terbagi
+                            </span>
+                            {onOpenTransferModal && (
+                              <button
+                                onClick={() => onOpenTransferModal(student.id)}
+                                title="Tempatkan ke Ruangan"
+                                className="text-[10px] font-bold text-indigo-700 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 px-1.5 py-0.5 rounded border border-indigo-200 cursor-pointer transition-colors"
+                              >
+                                + Tempatkan
+                              </button>
+                            )}
+                          </div>
                         )}
                       </td>
                       <td className="py-2.5 px-4 text-center">
                         <div className="flex items-center justify-center gap-1">
+                          {onOpenTransferModal && (
+                            <button
+                              onClick={() => onOpenTransferModal(student.id, student.roomId, student.seatNumber)}
+                              title="Pindah Ruang & Atur Meja Siswa"
+                              className="p-1 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded cursor-pointer"
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           <button
                             onClick={() => setEditingStudent(student)}
                             title="Edit Siswa"
