@@ -30,6 +30,7 @@ import {
   DeskRoomMode 
 } from './DeskLabelsSheet';
 import { RoomDoorLabelSheet } from './RoomDoorLabelSheet';
+import { DispensationPermitSheet } from './DispensationPermitSheet';
 import { extractTingkat, getTingkatSortRank } from '../utils/distribution';
 
 interface ExamDocumentsViewProps {
@@ -39,7 +40,7 @@ interface ExamDocumentsViewProps {
   schedules: ExamScheduleItem[];
 }
 
-type DocType = 'attendance' | 'proctor_attendance' | 'desk_labels' | 'room_label' | 'door_roster' | 'minutes' | 'question_cover';
+type DocType = 'attendance' | 'dispensation' | 'proctor_attendance' | 'desk_labels' | 'room_label' | 'door_roster' | 'minutes' | 'question_cover';
 
 export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
   config,
@@ -128,9 +129,10 @@ export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
         </div>
 
         {/* Document Type Selector Buttons */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-2.5">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-4 xl:grid-cols-8 gap-2.5">
           {[
-            { id: 'attendance', label: 'Daftar Hadir Siswa', icon: <CheckSquare className="w-4 h-4" /> },
+            { id: 'attendance', label: 'Absensi Siswa / Ruang', icon: <CheckSquare className="w-4 h-4" /> },
+            { id: 'dispensation', label: 'Surat Izin / Dispensasi', icon: <FileText className="w-4 h-4" /> },
             { id: 'proctor_attendance', label: 'Absen Pengawas', icon: <UserCheck className="w-4 h-4" /> },
             { id: 'desk_labels', label: 'Label / Stiker Meja', icon: <Tag className="w-4 h-4" /> },
             { id: 'room_label', label: 'Label Nomor Ruang', icon: <DoorClosed className="w-4 h-4" /> },
@@ -160,28 +162,30 @@ export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
 
         {/* Room & Subject Filters */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 pt-2 border-t border-slate-100">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Pilih Ruang Ujian:
-            </label>
-            <select
-              value={selectedRoomId}
-              onChange={(e) => setSelectedRoomId(e.target.value)}
-              className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white font-medium"
-            >
-              {(selectedDoc === 'question_cover' || selectedDoc === 'desk_labels' || selectedDoc === 'room_label') && (
-                <option value="ALL_ROOMS">📁 Semua Ruang (Cetak Sekaligus — {rooms.length} Ruang)</option>
-              )}
-              {rooms.map((r) => {
-                const count = students.filter((s) => s.roomId === r.id).length;
-                return (
-                  <option key={r.id} value={r.id}>
-                    {r.name} ({r.roomCode}) — {count} Siswa
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+          {selectedDoc !== 'dispensation' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Pilih Ruang Ujian:
+              </label>
+              <select
+                value={selectedRoomId}
+                onChange={(e) => setSelectedRoomId(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white font-medium"
+              >
+                {(selectedDoc === 'question_cover' || selectedDoc === 'desk_labels' || selectedDoc === 'room_label' || selectedDoc === 'attendance' || selectedDoc === 'door_roster' || selectedDoc === 'minutes') && (
+                  <option value="ALL_ROOMS">📁 Semua Ruang (Cetak Sekaligus — {rooms.length} Ruang)</option>
+                )}
+                {rooms.map((r) => {
+                  const count = students.filter((s) => s.roomId === r.id).length;
+                  return (
+                    <option key={r.id} value={r.id}>
+                      {r.name} ({r.roomCode}) — {count} Siswa
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+          )}
 
           {/* Desk Labels Filter Controls */}
           {selectedDoc === 'desk_labels' && (
@@ -238,7 +242,7 @@ export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
             </>
           )}
 
-          {(selectedDoc === 'attendance' || selectedDoc === 'minutes' || selectedDoc === 'question_cover') && (
+          {(selectedDoc === 'attendance' || selectedDoc === 'minutes' || selectedDoc === 'question_cover' || selectedDoc === 'dispensation') && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 Mata Pelajaran:
@@ -292,19 +296,21 @@ export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
                   <option value="half">2 Label / Lembar (Format Hemat A5)</option>
                 </select>
               </div>
-
-              <div className="flex items-end pb-1.5">
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={includeStampAndSignature}
-                    onChange={(e) => setIncludeStampAndSignature(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
-                  />
-                  <span>Sertakan TTD &amp; Stempel</span>
-                </label>
-              </div>
             </>
+          )}
+
+          {(selectedDoc === 'attendance' || selectedDoc === 'dispensation' || selectedDoc === 'minutes' || selectedDoc === 'question_cover' || selectedDoc === 'proctor_attendance') && (
+            <div className="flex items-end pb-1.5">
+              <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeStampAndSignature}
+                  onChange={(e) => setIncludeStampAndSignature(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                />
+                <span>Sertakan TTD &amp; Stempel</span>
+              </label>
+            </div>
           )}
         </div>
 
@@ -374,11 +380,50 @@ export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
       {/* Document View Canvas */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs p-6 md:p-8 print:p-0 print:border-none print:shadow-none">
         {selectedDoc === 'attendance' && (
-          <AttendanceSheet
+          selectedRoomId === 'ALL_ROOMS' ? (
+            <div className="space-y-12 print:space-y-0">
+              {rooms.map((room, idx) => {
+                const rStudents = students
+                  .filter((s) => s.roomId === room.id)
+                  .sort((a, b) => (a.seatNumber || 0) - (b.seatNumber || 0));
+                const sched = schedules.find((s) => s.subject === selectedSubject);
+                return (
+                  <div
+                    key={room.id}
+                    className={`${idx < rooms.length - 1 ? 'break-after-page print:break-after-page' : ''}`}
+                  >
+                    <AttendanceSheet
+                      config={config}
+                      room={room}
+                      students={rStudents}
+                      subject={selectedSubject}
+                      scheduleItem={sched}
+                      includeStampAndSignature={includeStampAndSignature}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <AttendanceSheet
+              config={config}
+              room={currentRoom}
+              students={roomStudents}
+              subject={selectedSubject}
+              scheduleItem={schedules.find((s) => s.subject === selectedSubject)}
+              includeStampAndSignature={includeStampAndSignature}
+            />
+          )
+        )}
+
+        {selectedDoc === 'dispensation' && (
+          <DispensationPermitSheet
             config={config}
-            room={currentRoom}
-            students={roomStudents}
-            subject={selectedSubject}
+            rooms={rooms}
+            students={students}
+            schedules={schedules}
+            selectedSubject={selectedSubject}
+            includeStampAndSignature={includeStampAndSignature}
           />
         )}
 
@@ -411,12 +456,35 @@ export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
         )}
 
         {selectedDoc === 'minutes' && (
-          <ExamMinutesSheet
-            config={config}
-            room={currentRoom}
-            students={roomStudents}
-            subject={selectedSubject}
-          />
+          selectedRoomId === 'ALL_ROOMS' ? (
+            <div className="space-y-12 print:space-y-0">
+              {rooms.map((room, idx) => {
+                const rStudents = students
+                  .filter((s) => s.roomId === room.id)
+                  .sort((a, b) => (a.seatNumber || 0) - (b.seatNumber || 0));
+                return (
+                  <div
+                    key={room.id}
+                    className={`${idx < rooms.length - 1 ? 'break-after-page print:break-after-page' : ''}`}
+                  >
+                    <ExamMinutesSheet
+                      config={config}
+                      room={room}
+                      students={rStudents}
+                      subject={selectedSubject}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <ExamMinutesSheet
+              config={config}
+              room={currentRoom}
+              students={roomStudents}
+              subject={selectedSubject}
+            />
+          )
         )}
 
         {selectedDoc === 'room_label' && (
@@ -429,11 +497,33 @@ export const ExamDocumentsView: React.FC<ExamDocumentsViewProps> = ({
         )}
 
         {selectedDoc === 'door_roster' && (
-          <DoorRosterSheet
-            config={config}
-            room={currentRoom}
-            students={roomStudents}
-          />
+          selectedRoomId === 'ALL_ROOMS' ? (
+            <div className="space-y-12 print:space-y-0">
+              {rooms.map((room, idx) => {
+                const rStudents = students
+                  .filter((s) => s.roomId === room.id)
+                  .sort((a, b) => (a.seatNumber || 0) - (b.seatNumber || 0));
+                return (
+                  <div
+                    key={room.id}
+                    className={`${idx < rooms.length - 1 ? 'break-after-page print:break-after-page' : ''}`}
+                  >
+                    <DoorRosterSheet
+                      config={config}
+                      room={room}
+                      students={rStudents}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <DoorRosterSheet
+              config={config}
+              room={currentRoom}
+              students={roomStudents}
+            />
+          )
         )}
 
         {selectedDoc === 'question_cover' && (
@@ -505,127 +595,272 @@ const AttendanceSheet: React.FC<{
   room?: ExamRoom;
   students: Student[];
   subject: string;
-}> = ({ config, room, students, subject }) => {
+  scheduleItem?: ExamScheduleItem;
+  includeStampAndSignature?: boolean;
+}> = ({ config, room, students, subject, scheduleItem, includeStampAndSignature = true }) => {
+  const maleCount = students.filter((s) => s.gender === 'L').length;
+  const femaleCount = students.filter((s) => s.gender === 'P').length;
+
+  // Breakdown by Tingkat (Grade: X, XI, XII, etc.)
+  const tingkatGroups = React.useMemo(() => {
+    const map = new Map<string, { tingkat: string; label: string; count: number; classes: Set<string> }>();
+
+    students.forEach((student) => {
+      const rawTingkat = extractTingkat(student.className);
+      const key = rawTingkat.toUpperCase().trim();
+      const label = /^kelas\b/i.test(rawTingkat) ? rawTingkat : `Kelas ${rawTingkat}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          tingkat: rawTingkat,
+          label,
+          count: 0,
+          classes: new Set<string>(),
+        });
+      }
+
+      const entry = map.get(key)!;
+      entry.count += 1;
+      if (student.className) {
+        entry.classes.add(student.className);
+      }
+    });
+
+    return Array.from(map.values())
+      .sort((a, b) => getTingkatSortRank(a.tingkat) - getTingkatSortRank(b.tingkat))
+      .map((item) => ({
+        ...item,
+        classList: Array.from(item.classes).join(', '),
+      }));
+  }, [students]);
+
+  const dateDisplay = scheduleItem?.dayName 
+    ? `${scheduleItem.dayName}, ${scheduleItem.date}` 
+    : config.issueDate || new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const timeDisplay = scheduleItem?.sessionTime
+    ? scheduleItem.sessionTime
+    : '07.30 - 09.30 WIB (Sesi 1)';
+
   return (
-    <div className="font-serif text-slate-900 text-xs space-y-4">
+    <div className="font-serif text-slate-900 text-xs space-y-3.5 max-w-5xl mx-auto">
       {/* Official Header with Logo */}
       <OfficialDocumentHeader config={config} />
 
       {/* Document Title */}
       <div className="text-center font-sans">
-        <h3 className="text-sm font-black uppercase tracking-wider">
-          DAFTAR HADIR PESERTA {config.examTitle}
+        <h3 className="text-sm md:text-base font-black uppercase tracking-wider text-slate-950">
+          DAFTAR HADIR (PRESENSI) PESERTA RUANG UJIAN
         </h3>
-        <p className="text-xs font-semibold text-slate-700">
-          TAHUN PELAJARAN {config.academicYear} • SEMESTER {config.semester.toUpperCase()}
+        <p className="text-xs font-bold text-slate-800 uppercase mt-0.5">
+          {config.examTitle} • TAHUN PELAJARAN {config.academicYear} • SEMESTER {config.semester.toUpperCase()}
         </p>
       </div>
 
       {/* Metadata Bar */}
-      <div className="font-sans text-[11px] grid grid-cols-2 gap-x-8 gap-y-1 bg-slate-50 p-3 rounded border border-slate-200">
+      <div className="font-sans text-[11px] grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 bg-slate-50 p-2.5 rounded border border-slate-300">
         <div className="space-y-1">
           <div className="flex">
             <span className="w-28 font-semibold text-slate-700">Mata Pelajaran</span>
             <span className="w-3">:</span>
-            <span className="font-bold text-slate-950">{subject}</span>
+            <span className="font-bold text-slate-950 text-xs">{subject}</span>
           </div>
           <div className="flex">
-            <span className="w-28 font-semibold text-slate-700">Ruang Ujian</span>
+            <span className="w-28 font-semibold text-slate-700">Hari, Tanggal</span>
             <span className="w-3">:</span>
-            <span className="font-bold text-indigo-900">{room?.name} ({room?.roomCode})</span>
+            <span className="font-medium text-slate-900">{dateDisplay}</span>
+          </div>
+          <div className="flex">
+            <span className="w-28 font-semibold text-slate-700">Waktu / Sesi</span>
+            <span className="w-3">:</span>
+            <span className="font-medium text-slate-900">{timeDisplay}</span>
+          </div>
+          <div className="flex items-start">
+            <span className="w-28 font-semibold text-slate-700 shrink-0">Rincian Rombel</span>
+            <span className="w-3 shrink-0">:</span>
+            <span className="font-medium text-slate-900 text-[10.5px]">
+              {tingkatGroups.length > 0
+                ? tingkatGroups.map((g) => `${g.label} (${g.count} Siswa: ${g.classList})`).join(' • ')
+                : '-'}
+            </span>
           </div>
         </div>
 
         <div className="space-y-1">
           <div className="flex">
-            <span className="w-28 font-semibold text-slate-700">Jumlah Peserta</span>
+            <span className="w-28 font-semibold text-slate-700">Ruang Ujian</span>
             <span className="w-3">:</span>
-            <span className="font-bold text-slate-950">{students.length} Orang</span>
+            <span className="font-black text-indigo-950 text-xs bg-indigo-50 border border-indigo-200 px-1.5 py-0.2 rounded">
+              {room?.name} ({room?.roomCode})
+            </span>
+            {room?.location && (
+              <span className="text-slate-500 ml-2 text-[10px]">Lokasi: {room.location}</span>
+            )}
           </div>
           <div className="flex">
-            <span className="w-28 font-semibold text-slate-700">Pengawas Ruang</span>
+            <span className="w-28 font-semibold text-slate-700">Jumlah Peserta</span>
             <span className="w-3">:</span>
-            <span className="text-slate-800">{room?.proctor1 || '................................'}</span>
+            <span className="font-bold text-slate-950">
+              {students.length} Siswa{' '}
+              <span className="text-[10px] text-slate-600 font-normal">
+                (Laki-laki: {maleCount}, Perempuan: {femaleCount})
+              </span>
+            </span>
+          </div>
+          <div className="flex">
+            <span className="w-28 font-semibold text-slate-700">Pengawas Ruang 1</span>
+            <span className="w-3">:</span>
+            <span className="font-semibold text-slate-900">{room?.proctor1 || '........................................'}</span>
+          </div>
+          <div className="flex">
+            <span className="w-28 font-semibold text-slate-700">Pengawas Ruang 2</span>
+            <span className="w-3">:</span>
+            <span className="text-slate-800">{room?.proctor2 || '........................................'}</span>
           </div>
         </div>
       </div>
 
       {/* Table with Zig-Zag Signature columns */}
       <div className="overflow-x-auto">
-        <table className="w-full font-sans text-[10.5px] border-collapse border border-slate-900">
+        <table className="w-full font-sans text-[10px] border-collapse border border-slate-900">
           <thead>
             <tr className="bg-slate-100 text-slate-900 text-center font-bold">
-              <th className="border border-slate-900 py-1.5 px-2 w-10">No</th>
-              <th className="border border-slate-900 py-1.5 px-3 w-32">No. Peserta</th>
-              <th className="border border-slate-900 py-1.5 px-3 w-28">NISN</th>
-              <th className="border border-slate-900 py-1.5 px-3 text-left">Nama Peserta</th>
+              <th className="border border-slate-900 py-1.5 px-1.5 w-8">No</th>
+              <th className="border border-slate-900 py-1.5 px-2 w-32">No. Peserta</th>
+              <th className="border border-slate-900 py-1.5 px-2 w-24">NISN / NIS</th>
+              <th className="border border-slate-900 py-1.5 px-3 text-left">Nama Lengkap Peserta</th>
               <th className="border border-slate-900 py-1.5 px-2 w-20">Kelas</th>
-              <th className="border border-slate-900 py-1.5 px-2 w-16">Meja</th>
-              <th className="border border-slate-900 py-1.5 px-3 w-40 text-center" colSpan={2}>
-                Tanda Tangan Peserta
+              <th className="border border-slate-900 py-1.5 px-1.5 w-12">Meja</th>
+              <th className="border border-slate-900 py-1.5 px-2 w-44 text-center" colSpan={2}>
+                Tanda Tangan / Paraf Peserta
               </th>
               <th className="border border-slate-900 py-1.5 px-2 w-16">Ket.</th>
             </tr>
           </thead>
           <tbody>
-            {students.map((student, idx) => {
-              const isOdd = (idx + 1) % 2 === 1;
-              return (
-                <tr key={student.id} className="border-b border-slate-300">
-                  <td className="border border-slate-900 py-2 px-2 text-center font-medium">
-                    {idx + 1}
-                  </td>
-                  <td className="border border-slate-900 py-2 px-3 font-mono font-bold text-slate-900 text-center">
-                    {student.examNumber}
-                  </td>
-                  <td className="border border-slate-900 py-2 px-3 font-mono text-center text-slate-700">
-                    {student.nisn}
-                  </td>
-                  <td className="border border-slate-900 py-2 px-3 font-semibold uppercase text-slate-950">
-                    {student.name}
-                  </td>
-                  <td className="border border-slate-900 py-2 px-2 text-center">
-                    {student.className}
-                  </td>
-                  <td className="border border-slate-900 py-2 px-2 text-center font-mono font-bold">
-                    {student.seatNumber ? String(student.seatNumber).padStart(2, '0') : '-'}
-                  </td>
-                  {/* Zig-Zag Signature cells */}
-                  <td className="border border-slate-900 py-2 px-2 w-20 text-[10px]">
-                    {isOdd ? <span className="font-mono text-slate-400">{idx + 1}.......</span> : ''}
-                  </td>
-                  <td className="border border-slate-900 py-2 px-2 w-20 text-[10px]">
-                    {!isOdd ? <span className="font-mono text-slate-400">{idx + 1}.......</span> : ''}
-                  </td>
-                  <td className="border border-slate-900 py-2 px-2 text-center text-slate-400">
-                    
-                  </td>
-                </tr>
-              );
-            })}
+            {students.length === 0 ? (
+              <tr>
+                <td colSpan={9} className="border border-slate-900 py-6 text-center text-slate-500 italic">
+                  Belum ada peserta yang dialokasikan di ruang ini.
+                </td>
+              </tr>
+            ) : (
+              students.map((student, idx) => {
+                const isOdd = (idx + 1) % 2 === 1;
+                return (
+                  <tr key={student.id} className="border-b border-slate-300 hover:bg-slate-50">
+                    <td className="border border-slate-900 py-1.5 px-1.5 text-center font-bold">
+                      {idx + 1}
+                    </td>
+                    <td className="border border-slate-900 py-1.5 px-2 font-mono font-bold text-slate-900 text-center">
+                      {student.examNumber}
+                    </td>
+                    <td className="border border-slate-900 py-1.5 px-2 font-mono text-center text-slate-700">
+                      {student.nisn || student.nis || '-'}
+                    </td>
+                    <td className="border border-slate-900 py-1.5 px-3 font-bold uppercase text-slate-950">
+                      {student.name}
+                    </td>
+                    <td className="border border-slate-900 py-1.5 px-2 text-center font-semibold text-slate-800">
+                      {student.className}
+                    </td>
+                    <td className="border border-slate-900 py-1.5 px-1.5 text-center font-mono font-bold text-slate-950">
+                      {student.seatNumber ? String(student.seatNumber).padStart(2, '0') : '-'}
+                    </td>
+                    {/* Zig-Zag Signature cells */}
+                    <td className="border border-slate-900 py-1.5 px-2 w-22 text-[9.5px]">
+                      {isOdd ? (
+                        <span className="font-mono text-slate-500 font-semibold">{idx + 1}. ...................</span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td className="border border-slate-900 py-1.5 px-2 w-22 text-[9.5px]">
+                      {!isOdd ? (
+                        <span className="font-mono text-slate-500 font-semibold">{idx + 1}. ...................</span>
+                      ) : (
+                        ''
+                      )}
+                    </td>
+                    <td className="border border-slate-900 py-1.5 px-1.5 text-center text-[9px] text-slate-400">
+                      
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      {/* Proctors Signature Footer */}
-      <div className="pt-6 font-sans text-xs flex justify-between text-center px-4">
-        <div>
-          <div className="text-slate-600">Mengetahui,</div>
-          <div className="font-semibold text-slate-800">Ketua Panitia Ujian</div>
-          <div className="h-16"></div>
-          <div className="font-bold underline text-slate-950">
-            {config.committeeHeadName || '(..................................................)'}
+      {/* Attendance Recapitulation Box (Kotak Rekapitulasi Presensi Ruang) */}
+      <div className="font-sans text-[10px] border border-slate-900 rounded p-2.5 bg-slate-50 space-y-1.5">
+        <div className="font-bold text-slate-900 text-[10.5px] uppercase tracking-wide border-b border-slate-200 pb-1 flex items-center justify-between">
+          <span>Rekapitulasi Kehadiran Peserta Ruang {room?.name || ''}:</span>
+          <span className="font-mono text-[9.5px] text-slate-600 font-normal">Diisi oleh Pengawas Ruang saat ujian berlangsung</span>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10.5px]">
+          <div className="bg-white border border-slate-300 rounded p-1.5">
+            <span className="text-[9px] text-slate-500 block font-bold uppercase">Terdaftar:</span>
+            <span className="font-bold text-slate-950 text-xs">{students.length} Siswa</span>
           </div>
-          <div className="text-[10px] text-slate-500">NIP. .........................................</div>
+          <div className="bg-white border border-slate-300 rounded p-1.5">
+            <span className="text-[9px] text-slate-500 block font-bold uppercase">Jumlah Hadir:</span>
+            <span className="font-mono font-bold text-slate-800">....... Siswa</span>
+          </div>
+          <div className="bg-white border border-slate-300 rounded p-1.5">
+            <span className="text-[9px] text-slate-500 block font-bold uppercase">Tidak Hadir:</span>
+            <span className="font-mono font-bold text-slate-800">....... Siswa</span>
+          </div>
+          <div className="bg-white border border-slate-300 rounded p-1.5">
+            <span className="text-[9px] text-slate-500 block font-bold uppercase">Rincian Absen:</span>
+            <span className="text-[9.5px] text-slate-700 font-mono">S: [ .. ] I: [ .. ] A: [ .. ]</span>
+          </div>
+        </div>
+        <div className="text-[10px] text-slate-700 pt-0.5 flex items-start gap-1.5">
+          <span className="font-bold shrink-0">No. Peserta Tidak Hadir:</span>
+          <span className="font-mono text-slate-400 flex-1 border-b border-dotted border-slate-400 pb-0.5">
+            ................................................................................................................................................................................................................
+          </span>
+        </div>
+      </div>
+
+      {/* Proctors Signature Footer */}
+      <div className="pt-3 font-sans text-xs grid grid-cols-1 sm:grid-cols-3 gap-4 text-center px-2">
+        <div>
+          <div className="text-slate-600 text-[11px]">Mengetahui,</div>
+          <div className="font-bold text-slate-900">Ketua Panitia Ujian</div>
+          <div className="h-14 flex items-center justify-center relative">
+            {includeStampAndSignature && config.stampUrl && (
+              <img src={config.stampUrl} alt="Stempel" className="max-h-full object-contain opacity-75" />
+            )}
+          </div>
+          <div className="font-bold underline text-slate-950">
+            {config.committeeHeadName || '( .................................................. )'}
+          </div>
+          <div className="text-[9.5px] text-slate-500">
+            NIP. {config.committeeHeadNip || '.........................................'}
+          </div>
         </div>
 
         <div>
-          <div className="text-slate-600">Pengawas Ruang Ujian,</div>
-          <div className="h-16"></div>
+          <div className="text-slate-600 text-[11px]">Pengawas Ruang 1,</div>
+          <div className="font-bold text-slate-900">Tanda Tangan</div>
+          <div className="h-14"></div>
           <div className="font-bold underline text-slate-950">
-            {room?.proctor1 || '(..................................................)'}
+            {room?.proctor1 || '( .................................................. )'}
           </div>
-          <div className="text-[10px] text-slate-500">NIP. .........................................</div>
+          <div className="text-[9.5px] text-slate-500">NIP. .........................................</div>
+        </div>
+
+        <div>
+          <div className="text-slate-600 text-[11px]">Pengawas Ruang 2,</div>
+          <div className="font-bold text-slate-900">Tanda Tangan</div>
+          <div className="h-14"></div>
+          <div className="font-bold underline text-slate-950">
+            {room?.proctor2 || '( .................................................. )'}
+          </div>
+          <div className="text-[9.5px] text-slate-500">NIP. .........................................</div>
         </div>
       </div>
     </div>
