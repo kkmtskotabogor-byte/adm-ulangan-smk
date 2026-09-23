@@ -30,6 +30,7 @@ import {
   DeskRoomMode 
 } from './DeskLabelsSheet';
 import { RoomDoorLabelSheet } from './RoomDoorLabelSheet';
+import { extractTingkat, getTingkatSortRank } from '../utils/distribution';
 
 interface ExamDocumentsViewProps {
   config: ExamConfig;
@@ -988,6 +989,39 @@ const SingleQuestionCoverLabel: React.FC<{
   const totalExamCopies = totalStudents + spareCopies;
   const totalAnswerSheets = totalStudents + spareCopies;
 
+  // Group and breakdown students by Tingkat (Grade level: Kelas X, XI, XII, dsb.)
+  const tingkatGroups = React.useMemo(() => {
+    const map = new Map<string, { tingkat: string; label: string; count: number; classes: Set<string> }>();
+
+    roomStudents.forEach((student) => {
+      const rawTingkat = extractTingkat(student.className);
+      const key = rawTingkat.toUpperCase().trim();
+      const label = /^kelas\b/i.test(rawTingkat) ? rawTingkat : `Kelas ${rawTingkat}`;
+
+      if (!map.has(key)) {
+        map.set(key, {
+          tingkat: rawTingkat,
+          label,
+          count: 0,
+          classes: new Set<string>(),
+        });
+      }
+
+      const entry = map.get(key)!;
+      entry.count += 1;
+      if (student.className) {
+        entry.classes.add(student.className);
+      }
+    });
+
+    return Array.from(map.values())
+      .sort((a, b) => getTingkatSortRank(a.tingkat) - getTingkatSortRank(b.tingkat))
+      .map((item) => ({
+        ...item,
+        classList: Array.from(item.classes).join(', '),
+      }));
+  }, [roomStudents]);
+
   return (
     <div
       className={`page-break-inside-avoid bg-white border-2 border-slate-900 rounded-lg text-slate-900 font-sans shadow-xs print:shadow-none relative overflow-hidden flex flex-col justify-between ${
@@ -1028,6 +1062,19 @@ const SingleQuestionCoverLabel: React.FC<{
               <div className="text-[10px] text-slate-700 font-semibold">
                 Tingkat / Kelas: <span className="text-slate-900 font-bold">{classes}</span>
               </div>
+              {tingkatGroups.length > 0 && (
+                <div className="text-[9px] text-slate-600 flex flex-wrap items-center gap-1.5 pt-0.5">
+                  <span className="font-bold text-slate-700">Rincian Siswa:</span>
+                  {tingkatGroups.map((grp) => (
+                    <span
+                      key={grp.tingkat}
+                      className="bg-white border border-slate-300 font-semibold px-1.5 py-0.2 rounded text-[8.5px] text-slate-900 shadow-2xs"
+                    >
+                      {grp.label}: <strong className="text-indigo-950 font-bold">{grp.count} Siswa</strong>
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Room Box */}
@@ -1077,23 +1124,110 @@ const SingleQuestionCoverLabel: React.FC<{
             </thead>
             <tbody>
               <tr>
-                <td className="border border-slate-900 py-1 px-1.5 text-center font-bold">1</td>
-                <td className="border border-slate-900 py-1 px-2 font-bold text-slate-950">Naskah Soal Ujian</td>
-                <td className="border border-slate-900 py-1 px-2 text-slate-700">
-                  Utama: {totalStudents} eks. + Cadangan: {spareCopies} eks.
+                <td className="border border-slate-900 py-1.5 px-1.5 text-center font-bold align-top">1</td>
+                <td className="border border-slate-900 py-1.5 px-2 font-bold text-slate-950 align-top">
+                  <div>Naskah Soal Ujian</div>
+                  {tingkatGroups.length > 0 && (
+                    <div className="text-[8.5px] font-bold text-indigo-700 uppercase tracking-wide mt-0.5">
+                      Rincian per Tingkat Kelas
+                    </div>
+                  )}
                 </td>
-                <td className="border border-slate-900 py-1 px-2 text-center font-bold text-slate-950 bg-slate-50">
-                  {totalExamCopies} Eksemplar
+                <td className="border border-slate-900 py-1.5 px-2 text-slate-800 align-top">
+                  {tingkatGroups.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {/* Grid Rincian Naskah per Tingkat */}
+                      <div className={`grid gap-1.5 ${tingkatGroups.length === 2 ? 'grid-cols-2' : tingkatGroups.length >= 3 ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-1'}`}>
+                        {tingkatGroups.map((grp) => (
+                          <div
+                            key={grp.tingkat}
+                            className="bg-slate-50 border border-slate-300 rounded px-2 py-1 flex items-center justify-between gap-1 shadow-2xs"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <span className="font-bold text-slate-950 text-[10.5px]">
+                                {grp.label}:
+                              </span>
+                              {grp.classList && (
+                                <span className="text-[8px] text-slate-500 block truncate" title={grp.classList}>
+                                  {grp.classList}
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono font-black text-indigo-950 bg-indigo-100/80 border border-indigo-300 px-1.5 py-0.5 rounded text-[11px] shrink-0">
+                              {grp.count} eks.
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Summary line */}
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-[9.5px] text-slate-700 pt-0.5 border-t border-dashed border-slate-300">
+                        <span>
+                          Total Naskah Utama: <strong>{totalStudents}</strong> eks. (
+                          {tingkatGroups.map((g) => `${g.tingkat}: ${g.count}`).join(' + ')}
+                          )
+                        </span>
+                        <span className="font-bold text-amber-900 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300">
+                          + Cadangan Ruang: {spareCopies} eks.
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>Utama: {totalStudents} eks. + Cadangan: {spareCopies} eks.</div>
+                  )}
+                </td>
+                <td className="border border-slate-900 py-1.5 px-2 text-center font-bold text-slate-950 bg-slate-50 align-middle">
+                  <div className="text-[13px] font-black text-slate-950">{totalExamCopies} Eksemplar</div>
+                  {tingkatGroups.length > 0 && (
+                    <div className="text-[8.5px] font-mono text-slate-600 font-normal mt-0.5 leading-tight">
+                      {tingkatGroups.map((g) => `Kls ${g.tingkat}: ${g.count}`).join(' + ')}
+                      {spareCopies > 0 && ` + Cad: ${spareCopies}`}
+                    </div>
+                  )}
                 </td>
               </tr>
               <tr>
-                <td className="border border-slate-900 py-1 px-1.5 text-center font-bold">2</td>
-                <td className="border border-slate-900 py-1 px-2 font-bold text-slate-950">Lembar Jawaban (LJK / LJ)</td>
-                <td className="border border-slate-900 py-1 px-2 text-slate-700">
-                  Utama: {totalStudents} lbr. + Cadangan: {spareCopies} lbr.
+                <td className="border border-slate-900 py-1.5 px-1.5 text-center font-bold align-top">2</td>
+                <td className="border border-slate-900 py-1.5 px-2 font-bold text-slate-950 align-top">
+                  <div>Lembar Jawaban (LJK / LJ)</div>
+                  {tingkatGroups.length > 0 && (
+                    <div className="text-[8.5px] font-medium text-slate-500 mt-0.5">
+                      Sesuai Jumlah Peserta + Cadangan
+                    </div>
+                  )}
                 </td>
-                <td className="border border-slate-900 py-1 px-2 text-center font-bold text-slate-950 bg-slate-50">
-                  {totalAnswerSheets} Lembar
+                <td className="border border-slate-900 py-1.5 px-2 text-slate-800 align-top">
+                  <div className="space-y-1">
+                    {tingkatGroups.length > 0 ? (
+                      <div className="flex flex-wrap items-center gap-1.5 text-[9.5px]">
+                        {tingkatGroups.map((grp) => (
+                          <span
+                            key={grp.tingkat}
+                            className="inline-flex items-center gap-1 bg-slate-100 border border-slate-300 px-1.5 py-0.5 rounded"
+                          >
+                            <span className="font-bold text-slate-800">{grp.label}:</span>
+                            <span className="font-mono font-bold text-slate-950">{grp.count} lbr.</span>
+                          </span>
+                        ))}
+                        <span className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded text-amber-900 font-semibold">
+                          Cadangan: {spareCopies} lbr.
+                        </span>
+                      </div>
+                    ) : (
+                      <div>Utama: {totalStudents} lbr. + Cadangan: {spareCopies} lbr.</div>
+                    )}
+                    <div className="text-[9px] text-slate-500">
+                      Total Utama: {totalStudents} lbr. + Cadangan: {spareCopies} lbr.
+                    </div>
+                  </div>
+                </td>
+                <td className="border border-slate-900 py-1.5 px-2 text-center font-bold text-slate-950 bg-slate-50 align-middle">
+                  <div className="text-[12px] font-black text-slate-950">{totalAnswerSheets} Lembar</div>
+                  {tingkatGroups.length > 0 && (
+                    <div className="text-[8.5px] font-mono text-slate-600 font-normal mt-0.5">
+                      ({tingkatGroups.map((g) => `Kls ${g.tingkat}: ${g.count}`).join(' + ')}{spareCopies > 0 ? ` + Cad: ${spareCopies}` : ''})
+                    </div>
+                  )}
                 </td>
               </tr>
               <tr>
@@ -1127,23 +1261,57 @@ const SingleQuestionCoverLabel: React.FC<{
         </div>
 
         {/* Student Range & Attendance Summary Box */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border border-slate-900 rounded p-2 bg-slate-50 text-[10.5px]">
-          <div>
-            <div className="text-[8.5px] uppercase font-bold text-slate-500">Rentang Nomor Peserta</div>
-            <div className="font-mono font-bold text-slate-900 truncate">{examRange}</div>
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 border border-slate-900 rounded p-2 bg-slate-50 text-[10.5px]">
+            <div>
+              <div className="text-[8.5px] uppercase font-bold text-slate-500">Rentang Nomor Peserta</div>
+              <div className="font-mono font-bold text-slate-900 truncate">{examRange}</div>
+            </div>
+            <div>
+              <div className="text-[8.5px] uppercase font-bold text-slate-500">Jumlah Terdaftar</div>
+              <div className="font-bold text-slate-900">{totalStudents} Siswa</div>
+            </div>
+            <div>
+              <div className="text-[8.5px] uppercase font-bold text-slate-500">Jumlah Hadir</div>
+              <div className="font-mono text-slate-700 font-bold">....... Siswa</div>
+            </div>
+            <div>
+              <div className="text-[8.5px] uppercase font-bold text-slate-500">Tidak Hadir</div>
+              <div className="font-mono text-slate-700 font-bold">....... Siswa</div>
+            </div>
           </div>
-          <div>
-            <div className="text-[8.5px] uppercase font-bold text-slate-500">Jumlah Terdaftar</div>
-            <div className="font-bold text-slate-900">{totalStudents} Siswa</div>
-          </div>
-          <div>
-            <div className="text-[8.5px] uppercase font-bold text-slate-500">Jumlah Hadir</div>
-            <div className="font-mono text-slate-700 font-bold">....... Siswa</div>
-          </div>
-          <div>
-            <div className="text-[8.5px] uppercase font-bold text-slate-500">Tidak Hadir</div>
-            <div className="font-mono text-slate-700 font-bold">....... Siswa</div>
-          </div>
+
+          {/* Detailed Verification Strip per Tingkat for Proctors */}
+          {tingkatGroups.length > 0 && (
+            <div className="border border-slate-900 rounded p-2 bg-white text-[10px]">
+              <div className="text-[8.5px] uppercase font-black text-slate-900 mb-1 flex items-center justify-between border-b border-slate-200 pb-0.5">
+                <span>Rincian Naskah Soal &amp; Presensi per Tingkat Kelas:</span>
+                <span className="text-[8px] text-slate-500 font-normal">Diperiksa pengawas saat pembukaan amplop</span>
+              </div>
+              <div className={`grid gap-1.5 ${tingkatGroups.length === 2 ? 'grid-cols-2' : tingkatGroups.length >= 3 ? 'grid-cols-3' : 'grid-cols-1'}`}>
+                {tingkatGroups.map((grp) => (
+                  <div
+                    key={grp.tingkat}
+                    className="border border-slate-300 rounded p-1.5 bg-slate-50/70 flex flex-col justify-between"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                      <span className="font-bold text-slate-950 text-[10px]">{grp.label}</span>
+                      <span className="font-mono font-black text-indigo-900 bg-white border border-slate-300 px-1.5 py-0.2 rounded text-[10px]">
+                        {grp.count} Eks. Soal
+                      </span>
+                    </div>
+                    <div className="text-[8.5px] text-slate-600 pt-1 space-y-0.5">
+                      <div className="truncate" title={grp.classList}>Rombel: <strong>{grp.classList}</strong></div>
+                      <div className="flex justify-between text-slate-700 font-mono text-[8.5px] pt-0.5">
+                        <span>Hadir: [ ... ]</span>
+                        <span>Absen: [ ... ]</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Seal Inspection & Opening Witness Verification */}
